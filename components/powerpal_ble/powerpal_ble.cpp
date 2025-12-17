@@ -12,7 +12,10 @@ void Powerpal::setup() {
   this->authenticated_ = false;
   this->pulse_multiplier_ =
     ((seconds_in_minute * this->reading_batch_size_[0]) / (this->pulses_per_kwh_ / kw_to_w_conversion));
-}
+
+    // gurrier
+  this->reset_connection_state_();
+ }
 
 void Powerpal::dump_config() {
   ESP_LOGCONFIG(TAG, "Powerpal:");
@@ -25,14 +28,84 @@ void Powerpal::dump_config() {
   LOG_SENSOR("  ", "Total Energy", this->energy_sensor_);
 }
 
+// gurrier
+void Powerpal::reset_connection_state_() {
+  this->authenticated_ = false;
+  this->pending_subscription_ = false;
+  this->subscription_in_progress_ = false;
+  this->subscription_retry_scheduled_ = false;
+
+  this->pairing_code_char_handle_ = 0;
+  this->reading_batch_size_char_handle_ = 0;
+  this->measurement_char_handle_ = 0;
+  this->battery_char_handle_ = 0;
+  this->led_sensitivity_char_handle_ = 0;
+  this->firmware_char_handle_ = 0;
+  this->uuid_char_handle_ = 0;
+  this->serial_number_char_handle_ = 0;
+
+  this->stored_measurements_count_ = 0;
+  this->stored_measurements_.clear();
+  this->last_measurement_timestamp_s_ = 0;
+  this->reconnect_pending_ = false;
+  this->client_connected_ = false;
+}
+void Powerpal::on_connect() {
+  ESP_LOGI(TAG, "[%s] Connected to Powerpal GATT server", this->parent_->address_str());
+  this->client_connected_ = true;
+  this->pending_subscription_ = true;
+  this->subscription_in_progress_ = false;
+  this->subscription_retry_scheduled_ = false;
+  this->reconnect_pending_ = false;
+  this->stored_measurements_.clear();
+  this->stored_measurements_count_ = 0;
+  this->last_measurement_timestamp_s_ = 0;
+  this->authenticated_ = false;
+
+  this->set_timeout(1000, [this]() { this->request_subscription_("post-connect"); });
+}
+
+void Powerpal::on_disconnect() {
+  ESP_LOGW(TAG, "[%s] Disconnected from Powerpal GATT server", this->parent_->address_str());
+  this->reset_connection_state_();
+
+  if (!this->reconnect_pending_) {
+    this->reconnect_pending_ = true;
+    this->set_timeout(10000, [this]() {
+      this->reconnect_pending_ = false;
+      if (this->parent_ == nullptr)
+        return;
+      if (this->client_connected_) {
+        ESP_LOGD(TAG, "[%s] Reconnect timer fired but client already connected", this->parent_->address_str());
+        return;
+      }
+      ESP_LOGI(TAG, "[%s] Attempting BLE reconnect", this->parent_->address_str());
+      this->pending_subscription_ = true;
+      this->parent_->connect();
+    });
+  }
+}
+
+
 void Powerpal::parse_battery_(const uint8_t *data, uint16_t length) {
-  ESP_LOGD(TAG, "Battery: DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length).c_str());
+  ESP_LOGD(TAG, "Battery: DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length));
   if (length == 1) {
     this->battery_->publish_state(data[0]);
   }
 }
 
 void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
+  //gurrier
+  if (length < 6) {
+    ESP_LOGW(TAG, "parse_measurement_: packet too short (%hu)", length);
+    return;
+  }
+  if (this->pulses_per_kwh_ <= 0.0f) {
+    ESP_LOGW(TAG, "pulses_per_kwh must be greater than zero; skipping measurement");
+    return;
+  }
+  //
+
   ESP_LOGD(TAG, "Meaurement: DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length).c_str());
   if (length >= 6) {
     time_t unix_time = data[0];
@@ -130,97 +203,179 @@ void Powerpal::decode_(const uint8_t *data, uint16_t length) {
 }
 
 std::string Powerpal::pkt_to_hex_(const uint8_t *data, uint16_t len) {
-  char buf[64];
-  memset(buf, 0, 64);
-  for (int i = 0; i < len; i++)
-    sprintf(&buf[i * 2], "%02x", data[i]);
-  std::string ret = buf;
+  // char buf[64];
+  // memset(buf, 0, 64);
+  // for (int i = 0; i < len; i++)
+  //   sprintf(&buf[i * 2], "%02x", data[i]);
+  // std::string ret = buf;
+  // return ret;
+
+  //gurrier
+  if (data == nullptr || len == 0)
+    return {};
+
+  static constexpr char HEXMAP[] = "0123456789abcdef";
+  std::string ret;
+  ret.reserve(static_cast<size_t>(len) * 2);
+  for (uint16_t i = 0; i < len; i++) {
+    uint8_t byte = data[i];
+    ret.push_back(HEXMAP[(byte >> 4) & 0x0F]);
+    ret.push_back(HEXMAP[byte & 0x0F]);
+  }
   return ret;
 }
 std::string Powerpal::uuid_to_device_id_(const uint8_t *data, uint16_t length) {
-  const char* hexmap[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"};
+  // const char* hexmap[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"};
+  // std::string device_id;
+  // for (int i = length-1; i >= 0; i--) {
+  //   device_id.append(hexmap[(data[i] & 0xF0) >> 4]);
+  //   device_id.append(hexmap[data[i] & 0x0F]);
+  // }
+  // return device_id;
+  if (data == nullptr || length == 0)
+    return {};
+
+  static constexpr char HEXMAP[] = "0123456789abcdef";
   std::string device_id;
-  for (int i = length-1; i >= 0; i--) {
-    device_id.append(hexmap[(data[i] & 0xF0) >> 4]);
-    device_id.append(hexmap[data[i] & 0x0F]);
+  device_id.reserve(static_cast<size_t>(length) * 2);
+  for (int i = static_cast<int>(length) - 1; i >= 0; i--) {
+    uint8_t byte = data[i];
+    device_id.push_back(HEXMAP[(byte & 0xF0) >> 4]);
+    device_id.push_back(HEXMAP[byte & 0x0F]);
   }
   return device_id;
 }
 
 std::string Powerpal::serial_to_apikey_(const uint8_t *data, uint16_t length) {
-  const char* hexmap[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"};
+  // const char* hexmap[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"};
+  // std::string api_key;
+  // for (int i = 0; i < length; i++) {
+  //   if ( i == 4 || i == 6 || i == 8 || i == 10 ) {
+  //     api_key.append("-");
+  //   }
+  //   api_key.append(hexmap[(data[i] & 0xF0) >> 4]);
+  //   api_key.append(hexmap[data[i] & 0x0F]);
+  // }
+  // return api_key;
+  if (data == nullptr || length == 0)
+    return {};
+
+  static constexpr char HEXMAP[] = "0123456789abcdef";
   std::string api_key;
-  for (int i = 0; i < length; i++) {
-    if ( i == 4 || i == 6 || i == 8 || i == 10 ) {
-      api_key.append("-");
+  api_key.reserve(static_cast<size_t>(length) * 2 + 4);
+  for (uint16_t i = 0; i < length; i++) {
+    if (i == 4 || i == 6 || i == 8 || i == 10) {
+      api_key.push_back('-');
     }
-    api_key.append(hexmap[(data[i] & 0xF0) >> 4]);
-    api_key.append(hexmap[data[i] & 0x0F]);
+    uint8_t byte = data[i];
+    api_key.push_back(HEXMAP[(byte & 0xF0) >> 4]);
+    api_key.push_back(HEXMAP[byte & 0x0F]);
   }
   return api_key;
 }
 
+void Powerpal::request_subscription_(const char *trigger_reason) {
+  if (!this->pending_subscription_)
+    return;
+
+  if (this->subscription_in_progress_) {
+    ESP_LOGV(TAG, "[%s] Subscription already in progress, ignoring trigger '%s'", this->parent_->address_str(), trigger_reason);
+    return;
+  }
+
+  if (this->pairing_code_char_handle_ == 0 || this->reading_batch_size_char_handle_ == 0 || this->measurement_char_handle_ == 0) {
+    ESP_LOGD(TAG, "[%s] GATT handles not ready, waiting to subscribe (%s)", this->parent_->address_str(), trigger_reason);
+    if (!this->subscription_retry_scheduled_) {
+      this->subscription_retry_scheduled_ = true;
+      this->set_timeout(500, [this]() {
+        this->subscription_retry_scheduled_ = false;
+        this->request_subscription_("wait-handles");
+      });
+    }
+    return;
+  }
+
+  ESP_LOGI(TAG, "[%s] Writing pairing code to resume notifications (%s)", this->parent_->address_str(), trigger_reason);
+  auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
+                                         this->pairing_code_char_handle_, sizeof(this->pairing_code_),
+                                         this->pairing_code_, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status != ESP_OK) {
+    ESP_LOGW(TAG, "[%s] Failed to submit pairing write (%s), status=%d", this->parent_->address_str(), trigger_reason, status);
+    if (!this->subscription_retry_scheduled_) {
+      this->subscription_retry_scheduled_ = true;
+      this->set_timeout(2000, [this]() {
+        this->subscription_retry_scheduled_ = false;
+        this->request_subscription_("retry");
+      });
+    }
+    return;
+  }
+
+  this->subscription_in_progress_ = true;
+}
 
 void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
   switch (event) {
+    case ESP_GATTC_OPEN_EVT: {
+      if (param->open.status == ESP_GATT_OK) {
+        ESP_LOGD(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->parent_->address_str());
+        this->on_connect();
+      } else {
+        ESP_LOGW(TAG, "[%s] ESP_GATTC_OPEN_EVT failed, status=%d", this->parent_->address_str(),
+                 param->open.status);
+        this->reset_connection_state_();
+      }
+      break;
+    }
     case ESP_GATTC_DISCONNECT_EVT: {
-      this->authenticated_ = false;
+      ESP_LOGW(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT", this->parent_->address_str());
+      this->on_disconnect();
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      // auto *pairing_code_char_ = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID,
-      // POWERPAL_CHARACTERISTIC_PAIRING_CODE_UUID); if (pairing_code_char_ == nullptr) {
-      //   ESP_LOGE(TAG, "[%s] No Powerpal service or Pairing Code Characteristic found at device, not a POWERPAL..?",
-      //             this->parent_->address_str().c_str());
-      //   break;
-      // } else {
-      //   this->pairing_code_char_handle_ = pairing_code_char_->handle;
-      // }
+      ESP_LOGI(TAG, "POWERPAL: services discovered, looking up characteristic handles…");
 
-      // auto *reading_batch_size_char_ = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID,
-      // POWERPAL_CHARACTERISTIC_READING_BATCH_SIZE_UUID); if (reading_batch_size_char_ == nullptr) {
-      //   ESP_LOGE(TAG, "[%s] No Powerpal service or Reading Batch Size Characteristic found at device, not a
-      //   POWERPAL..?",
-      //             this->parent_->address_str().c_str());
-      //   break;
-      // } else {
-      //   this->reading_batch_size_char_handle_ = reading_batch_size_char_->handle;
-      // }
+      // Pairing Code
+      if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_PAIRING_CODE_UUID)) {
+        this->pairing_code_char_handle_ = ch->handle;
+        ESP_LOGI(TAG, "  → pairing_code handle = 0x%02x", ch->handle);
+      } else {
+        ESP_LOGE(TAG, "  ! pairing_code characteristic not found");
+      }
 
-      // auto *measurement_char_ = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID,
-      // POWERPAL_CHARACTERISTIC_MEASUREMENT_UUID); if (measurement_char_ == nullptr) {
-      //   ESP_LOGE(TAG, "[%s] No Powerpal service or Measurement Characteristic found at device, not a POWERPAL..?",
-      //             this->parent_->address_str().c_str());
-      //   break;
-      // } else {
-      //   this->measurement_char_handle_ = measurement_char_->handle;
-      // }
+      // Reading Batch Size
+      if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_READING_BATCH_SIZE_UUID)) {
+        this->reading_batch_size_char_handle_ = ch->handle;
+        ESP_LOGI(TAG, "  → reading_batch_size handle = 0x%02x", ch->handle);
+      } else {
+        ESP_LOGE(TAG, "  ! reading_batch_size characteristic not found");
+      }
 
-      // auto *uuid_char_ = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID,
-      // POWERPAL_CHARACTERISTIC_UUID_UUID); if (uuid_char_ == nullptr) {
-      //   ESP_LOGE(TAG, "[%s] No Powerpal service or Measurement Characteristic found at device, not a POWERPAL..?",
-      //             this->parent_->address_str().c_str());
-      //   break;
-      // } else {
-      //   this->uuid_char_handle_ = uuid_char_->handle;
-      //   ESP_LOGE(TAG, "UUID HANDLE: %d",this->uuid_char_handle_);
-      // }
+      // Measurement
+      if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_MEASUREMENT_UUID)) {
+        this->measurement_char_handle_ = ch->handle;
+        ESP_LOGI(TAG, "  → measurement handle = 0x%02x", ch->handle);
+      } else {
+        ESP_LOGE(TAG, "  ! measurement characteristic not found");
+      }
 
-      // auto *serial_char_ = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID,
-      // POWERPAL_CHARACTERISTIC_SERIAL_UUID); if (serial_char_ == nullptr) {
-      //   ESP_LOGE(TAG, "[%s] No Powerpal service or Measurement Characteristic found at device, not a POWERPAL..?",
-      //             this->parent_->address_str().c_str());
-      //   break;
-      // } else {
-      //   this->serial_number_char_handle_ = serial_char_->handle;
-      //   ESP_LOGE(TAG, "SERIAL HANDLE: %d",this->serial_number_char_handle_);
-      // }
+      // (optional) UUID & serial if you need them:
+      if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_UUID_UUID)) {
+        this->uuid_char_handle_ = ch->handle;
+        ESP_LOGI(TAG, "  → uuid handle = 0x%02x", ch->handle);
+      }
+      if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_SERIAL_UUID)) {
+        this->serial_number_char_handle_ = ch->handle;
+        ESP_LOGI(TAG, "  → serial handle = 0x%02x", ch->handle);
+      }
 
+      this->pending_subscription_ = true;
+      this->request_subscription_("service discovery");
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
-      ESP_LOGD(TAG, "[%s] ESP_GATTC_READ_CHAR_EVT (Received READ)", this->parent_->address_str().c_str());
+      ESP_LOGD(TAG, "[%s] ESP_GATTC_READ_CHAR_EVT (Received READ)", this->parent_->address_str());
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;
@@ -245,7 +400,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
                                                             this->measurement_char_handle_);
             if (status) {
               ESP_LOGW(TAG, "[%s] esp_ble_gattc_register_for_notify failed, status=%d",
-                       this->parent_->address_str().c_str(), status);
+                       this->parent_->address_str(), status);
             }
           }
         } else {
@@ -256,28 +411,28 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       // battery
       if (param->read.handle == this->battery_char_handle_) {
-        ESP_LOGV(TAG, "Received battery read event");
+        ESP_LOGD(TAG, "Received battery read event");
         this->parse_battery_(param->read.value, param->read.value_len);
         break;
       }
 
       // firmware
       if (param->read.handle == this->firmware_char_handle_) {
-        ESP_LOGV(TAG, "Received firmware read event");
+        ESP_LOGD(TAG, "Received firmware read event");
         this->decode_(param->read.value, param->read.value_len);
         break;
       }
 
       // led sensitivity
       if (param->read.handle == this->led_sensitivity_char_handle_) {
-        ESP_LOGV(TAG, "Received led sensitivity read event");
+        ESP_LOGD(TAG, "Received led sensitivity read event");
         this->decode_(param->read.value, param->read.value_len);
         break;
       }
 
       // serialNumber
       if (param->read.handle == this->serial_number_char_handle_) {
-        ESP_LOGV(TAG, "Received uuid read event");
+        ESP_LOGI(TAG, "Received serial_number read event");
         this->powerpal_device_id_ = this->uuid_to_device_id_(param->read.value, param->read.value_len);
         ESP_LOGI(TAG, "Powerpal device id: %s", this->powerpal_device_id_.c_str());
 
@@ -286,7 +441,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       // uuid
       if (param->read.handle == this->uuid_char_handle_) {
-        ESP_LOGV(TAG, "Received serial_number read event");
+        ESP_LOGI(TAG, "Received uuid read event");
         this->powerpal_apikey_ = this->serial_to_apikey_(param->read.value, param->read.value_len);
         ESP_LOGI(TAG, "Powerpal apikey: %s", this->powerpal_apikey_.c_str());
 
@@ -297,14 +452,26 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }
 
     case ESP_GATTC_WRITE_CHAR_EVT: {
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_WRITE_CHAR_EVT write confirmed", this->parent_->address_str().c_str());
-      if (param->write.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "Error writing value to char at handle %d, status=%d", param->write.handle, param->write.status);
-        break;
-      }
+      ESP_LOGD(TAG, "[%s] ESP_GATTC_WRITE_CHAR_EVT (Write confirmed)", this->parent_->address_str());
 
-      if (param->write.handle == this->pairing_code_char_handle_ && !this->authenticated_) {
+      if (param->write.handle == this->pairing_code_char_handle_) {
+        this->subscription_in_progress_ = false;
+        if (param->write.status != ESP_GATT_OK) {
+          ESP_LOGW(TAG, "Error writing pairing code at handle %d, status=%d", param->write.handle, param->write.status);
+          this->pending_subscription_ = true;
+          if (!this->subscription_retry_scheduled_) {
+            this->subscription_retry_scheduled_ = true;
+            this->set_timeout(2000, [this]() {
+              this->subscription_retry_scheduled_ = false;
+              this->request_subscription_("retry-after-fail");
+            });
+          }
+          break;
+        }
+
         this->authenticated_ = true;
+        this->pending_subscription_ = false;
+        this->subscription_retry_scheduled_ = false;
 
         auto read_reading_batch_size_status =
             esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
@@ -316,7 +483,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         if (!this->powerpal_apikey_.length()) {
           // read uuid (apikey)
           auto read_uuid_status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
-                                                            this->uuid_char_handle_, ESP_GATT_AUTH_REQ_NONE);
+                                                          this->uuid_char_handle_, ESP_GATT_AUTH_REQ_NONE);
           if (read_uuid_status) {
             ESP_LOGW(TAG, "Error sending read request for powerpal uuid, status=%d", read_uuid_status);
           }
@@ -324,7 +491,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         if (!this->powerpal_device_id_.length()) {
           // read serial number (device id)
           auto read_serial_number_status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
-                                                            this->serial_number_char_handle_, ESP_GATT_AUTH_REQ_NONE);
+                                                                  this->serial_number_char_handle_, ESP_GATT_AUTH_REQ_NONE);
           if (read_serial_number_status) {
             ESP_LOGW(TAG, "Error sending read request for powerpal serial number, status=%d", read_serial_number_status);
           }
@@ -342,7 +509,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
               this->parent_->get_gattc_if(), this->parent_->get_remote_bda(), this->battery_char_handle_);
           if (notify_battery_status) {
             ESP_LOGW(TAG, "[%s] esp_ble_gattc_register_for_notify failed, status=%d",
-                     this->parent_->address_str().c_str(), notify_battery_status);
+                     this->parent_->address_str(), notify_battery_status);
           }
         }
 
@@ -364,24 +531,29 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
         break;
       }
+
+      if (param->write.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Error writing value to char at handle %d, status=%d", param->write.handle, param->write.status);
+        break;
+      }
+
       if (param->write.handle == this->reading_batch_size_char_handle_) {
         // reading batch size is now set correctly so subscribe to measurement notifications
         auto status = esp_ble_gattc_register_for_notify(this->parent_->get_gattc_if(), this->parent_->get_remote_bda(),
                                                         this->measurement_char_handle_);
         if (status) {
           ESP_LOGW(TAG, "[%s] esp_ble_gattc_register_for_notify failed, status=%d",
-                   this->parent_->address_str().c_str(), status);
+                   this->parent_->address_str(), status);
         }
         break;
       }
 
       ESP_LOGW(TAG, "[%s] Missed all handle matches: %d",
-               this->parent_->address_str().c_str(), param->write.handle);
+               this->parent_->address_str(), param->write.handle);
       break;
     }  // ESP_GATTC_WRITE_CHAR_EVT
-
     case ESP_GATTC_NOTIFY_EVT: {
-      ESP_LOGV(TAG, "[%s] Received Notification", this->parent_->address_str().c_str());
+      ESP_LOGD(TAG, "[%s] Received Notification", this->parent_->address_str());
 
       // battery
       if (param->notify.handle == this->battery_char_handle_) {
@@ -408,13 +580,17 @@ void Powerpal::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // This event is sent once authentication has completed
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       if (param->ble_security.auth_cmpl.success) {
-        ESP_LOGI(TAG, "[%s] writing pairing code to Powerpal", this->parent_->address_str().c_str());
-        auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
-                                               this->pairing_code_char_handle_, sizeof(this->pairing_code_),
-                                               this->pairing_code_, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
-        if (status) {
-          ESP_LOGW(TAG, "Error sending write request for pairing_code, status=%d", status);
-        }
+        ESP_LOGI(TAG, "[%s] Authentication completed", this->parent_->address_str());
+        this->pending_subscription_ = true;
+        this->subscription_in_progress_ = false;
+        this->subscription_retry_scheduled_ = false;
+        this->request_subscription_("auth-complete");
+      } else {
+        ESP_LOGW(TAG, "[%s] Authentication failed, reason=0x%02x", this->parent_->address_str(),
+                 param->ble_security.auth_cmpl.fail_reason);
+        this->pending_subscription_ = false;
+        this->subscription_in_progress_ = false;
+        this->subscription_retry_scheduled_ = false;
       }
       break;
     }

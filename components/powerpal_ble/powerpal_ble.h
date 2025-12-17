@@ -53,6 +53,11 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
+
+  // gurrier
+  void on_connect();
+  void on_disconnect();
+
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -92,7 +97,7 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   void parse_battery_(const uint8_t *data, uint16_t length);
   void parse_measurement_(const uint8_t *data, uint16_t length);
 
-  bool authenticated_;
+  //bool authenticated_;
 
   uint8_t pairing_code_[4];
   uint8_t reading_batch_size_[4] = {0x01, 0x00, 0x00, 0x00};
@@ -106,6 +111,19 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 
   float pulses_per_kwh_;
   float pulse_multiplier_;
+
+  // gurrier
+  uint32_t last_measurement_timestamp_s_{0};
+
+  void request_subscription_(const char *trigger_reason);
+  void reset_connection_state_();
+
+  bool authenticated_{false};
+  bool pending_subscription_{false};
+  bool subscription_in_progress_{false};
+  bool subscription_retry_scheduled_{false};
+  bool reconnect_pending_{false};
+  bool client_connected_{false};
 
   sensor::Sensor *battery_{nullptr};
   sensor::Sensor *daily_energy_sensor_{nullptr};
@@ -128,16 +146,25 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 
   time_t start_unix_time_;
 
-  // almost should be considered constants
-  uint16_t pairing_code_char_handle_ = 0x2e;
-  uint16_t reading_batch_size_char_handle_ = 0x33;
+  // // almost should be considered constants
+  // uint16_t pairing_code_char_handle_ = 0x2e;
+  // uint16_t reading_batch_size_char_handle_ = 0x33;
 
-  uint16_t battery_char_handle_ = 0x10;
-  uint16_t firmware_char_handle_ = 0x3b;
-  uint16_t led_sensitivity_char_handle_ = 0x25;
-  uint16_t measurement_char_handle_ = 0x14;
-  uint16_t serial_number_char_handle_ = 0x2b;
-  uint16_t uuid_char_handle_ = 0x28;
+  // uint16_t battery_char_handle_ = 0x10;
+  // uint16_t firmware_char_handle_ = 0x3b;
+  // uint16_t led_sensitivity_char_handle_ = 0x25;
+  // uint16_t measurement_char_handle_ = 0x14;
+  // uint16_t serial_number_char_handle_ = 0x2b;
+  // uint16_t uuid_char_handle_ = 0x28;
+  uint16_t pairing_code_char_handle_{0};
+  uint16_t reading_batch_size_char_handle_{0};
+  uint16_t measurement_char_handle_{0};
+
+  uint16_t battery_char_handle_{0};
+  uint16_t led_sensitivity_char_handle_{0};
+  uint16_t firmware_char_handle_{0};
+  uint16_t uuid_char_handle_{0};
+  uint16_t serial_number_char_handle_{0};
 };
 
 } // namespace powerpal_ble
