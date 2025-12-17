@@ -88,7 +88,7 @@ void Powerpal::on_disconnect() {
 
 
 void Powerpal::parse_battery_(const uint8_t *data, uint16_t length) {
-  ESP_LOGD(TAG, "Battery: DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length));
+  ESP_LOGD(TAG, "Battery: DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length).c_str());
   if (length == 1) {
     this->battery_->publish_state(data[0]);
   }
