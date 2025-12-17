@@ -341,7 +341,8 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         this->pairing_code_char_handle_ = ch->handle;
         ESP_LOGI(TAG, "  → pairing_code handle = 0x%02x", ch->handle);
       } else {
-        ESP_LOGE(TAG, "  ! pairing_code characteristic not found");
+        ESP_LOGE(TAG, "  Cannot discover characteristic: pairing code - setting to default");
+        this->pairing_code_char_handle_ = 0x2E;
       }
 
       // Reading Batch Size
@@ -349,7 +350,9 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         this->reading_batch_size_char_handle_ = ch->handle;
         ESP_LOGI(TAG, "  → reading_batch_size handle = 0x%02x", ch->handle);
       } else {
-        ESP_LOGE(TAG, "  ! reading_batch_size characteristic not found");
+        ESP_LOGE(TAG, "   Cannot discover characteristic: reading batch size - setting to default");
+        this->reading_batch_size_char_handle_ = 0x33;
+
       }
 
       // Measurement
@@ -357,18 +360,31 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         this->measurement_char_handle_ = ch->handle;
         ESP_LOGI(TAG, "  → measurement handle = 0x%02x", ch->handle);
       } else {
-        ESP_LOGE(TAG, "  ! measurement characteristic not found");
+        ESP_LOGE(TAG, "  Cannot discover characteristic: measurement - setting to default");
+        this->measurement_char_handle_ = 0x14;
       }
 
       // (optional) UUID & serial if you need them:
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_UUID_UUID)) {
         this->uuid_char_handle_ = ch->handle;
         ESP_LOGI(TAG, "  → uuid handle = 0x%02x", ch->handle);
+      } else {
+        ESP_LOGE(TAG, "  Cannot discover characteristic: uuid - setting to default");
+        this->uuid_char_handle_ = 0x28;
       }
+
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_SERIAL_UUID)) {
         this->serial_number_char_handle_ = ch->handle;
         ESP_LOGI(TAG, "  → serial handle = 0x%02x", ch->handle);
+       } else {
+        ESP_LOGE(TAG, "  Cannot discover characteristic: serial - setting to default");
+        this->serial_number_char_handle_ = 0x2B;
       }
+
+      // set daults with no discovery
+      battery_char_handle_ = 0x10;
+      firmware_char_handle_ = 0x3B;
+      led_sensitivity_char_handle_ = 0x25;
 
       this->pending_subscription_ = true;
       this->request_subscription_("service discovery");
