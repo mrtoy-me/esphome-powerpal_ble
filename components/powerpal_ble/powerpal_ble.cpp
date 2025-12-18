@@ -8,6 +8,37 @@ namespace powerpal_ble {
 
 static const char *const TAG = "powerpal_ble";
 
+static const uint16_t PAIRING_CODE_DEFAULT_HANDLE         = 0x2E;
+static const uint16_t READING_BATCH_SIZE_DEFAULT_HANDLE   = 0x33;
+
+static const uint16_t BATTERY_CHAR_DEFAULT_HANDLE         = 0x10;
+static const uint16_t FIRMWARE_CHAR_DEFAULT_HANDLE        = 0x3B;
+static const uint16_t LED_SENSITIVITY_CHAR_DEFAULT_HANDLE = 0x25;
+static const uint16_t MEASUREMENT_CHAR_DEFAULT_HANDLE     = 0x14;
+static const uint16_t SERIAL_NUMBER_CHAR_DEFAULT_HANDLE   = 0x2B;
+static const uint16_t UUID_CHAR_DEFAULT_HANDLE            = 0x28;
+
+namespace espbt = esphome::esp32_ble_tracker;
+
+static const espbt::ESPBTUUID POWERPAL_SERVICE_UUID =
+    espbt::ESPBTUUID::from_raw("59DAABCD-12F4-25A6-7D4F-55961DCE4205");
+static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_PAIRING_CODE_UUID =
+    espbt::ESPBTUUID::from_raw("59DA0011-12F4-25A6-7D4F-55961DCE4205");  // indicate, notify, read, write
+static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_READING_BATCH_SIZE_UUID =
+    espbt::ESPBTUUID::from_raw("59DA0013-12F4-25A6-7D4F-55961DCE4205");  // indicate, notify, read, write
+static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_MEASUREMENT_UUID =
+    espbt::ESPBTUUID::from_raw("59DA0001-12F4-25A6-7D4F-55961DCE4205");  // notify, read, write
+static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_UUID_UUID =
+    espbt::ESPBTUUID::from_raw("59DA0009-12F4-25A6-7D4F-55961DCE4205");  // indicate, notify, read, write
+static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_SERIAL_UUID =
+    espbt::ESPBTUUID::from_raw("59DA0010-12F4-25A6-7D4F-55961DCE4205");  // indicate, notify, read, write
+
+static const espbt::ESPBTUUID POWERPAL_BATTERY_SERVICE_UUID = espbt::ESPBTUUID::from_uint16(0x180F);
+static const espbt::ESPBTUUID POWERPAL_BATTERY_CHARACTERISTIC_UUID = espbt::ESPBTUUID::from_uint16(0x2A19);
+
+static const uint8_t seconds_in_minute = 60;        // seconds
+static const float kw_to_w_conversion  = 1000.0;    // conversion ratio
+
 void Powerpal::setup() {
   this->authenticated_ = false;
   this->pulse_multiplier_ =
@@ -19,9 +50,9 @@ void Powerpal::setup() {
 
 void Powerpal::dump_config() {
   ESP_LOGCONFIG(TAG, "Powerpal:");
-  ESP_LOGCONFIG(TAG,"  Pulses/kwh: %i\n"
-                    "  Interval: %imin\n",
-                    this->pulses_per_kwh_, this->reading_batch_size_[0]);
+  ESP_LOGCONFIG(TAG, "  Pulses/kwh: %i", this->pulses_per_kwh_);
+  ESP_LOGCONFIG(TAG, "  Interval: %i min", this->reading_batch_size_[0]);
+
   LOG_SENSOR("  ", "Battery", this->battery_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
   LOG_SENSOR("  ", "Daily Energy", this->daily_energy_sensor_);
@@ -202,7 +233,7 @@ void Powerpal::decode_(const uint8_t *data, uint16_t length) {
   ESP_LOGD(TAG, "DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length).c_str());
 }
 
-std::string Powerpal::pkt_to_hex_(const uint8_t *data, uint16_t len) {
+std::string Powerpal::pkt_to_hex_(const uint8_t* data, uint16_t len) {
   // char buf[64];
   // memset(buf, 0, 64);
   // for (int i = 0; i < len; i++)
@@ -214,15 +245,17 @@ std::string Powerpal::pkt_to_hex_(const uint8_t *data, uint16_t len) {
   if (data == nullptr || len == 0)
     return {};
 
-  static constexpr char HEXMAP[] = "0123456789abcdef";
-  std::string ret;
-  ret.reserve(static_cast<size_t>(len) * 2);
-  for (uint16_t i = 0; i < len; i++) {
-    uint8_t byte = data[i];
-    ret.push_back(HEXMAP[(byte >> 4) & 0x0F]);
-    ret.push_back(HEXMAP[byte & 0x0F]);
-  }
-  return ret;
+  return format_hex(data, len);
+
+  // static constexpr char HEXMAP[] = "0123456789abcdef";
+  // std::string ret;
+  // ret.reserve(static_cast<size_t>(len) * 2);
+  // for (uint16_t i = 0; i < len; i++) {
+  //   uint8_t byte = data[i];
+  //   ret.push_back(HEXMAP[(byte >> 4) & 0x0F]);
+  //   ret.push_back(HEXMAP[byte & 0x0F]);
+  // }
+  // return ret;
 }
 std::string Powerpal::uuid_to_device_id_(const uint8_t *data, uint16_t length) {
   // const char* hexmap[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"};
@@ -334,7 +367,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      ESP_LOGI(TAG, "POWERPAL: services discovered, looking up characteristic handles…");
+      ESP_LOGI(TAG, "POWERPAL: services discovered, looking up characteristic handles");
 
       // Pairing Code
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_PAIRING_CODE_UUID)) {
@@ -342,7 +375,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         ESP_LOGI(TAG, "  → pairing_code handle = 0x%02x", ch->handle);
       } else {
         ESP_LOGE(TAG, "  Cannot discover characteristic: pairing code - setting to default");
-        this->pairing_code_char_handle_ = 0x2E;
+        this->pairing_code_char_handle_ = PAIRING_CODE_DEFAULT_HANDLE;
       }
 
       // Reading Batch Size
@@ -351,8 +384,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         ESP_LOGI(TAG, "  → reading_batch_size handle = 0x%02x", ch->handle);
       } else {
         ESP_LOGE(TAG, "   Cannot discover characteristic: reading batch size - setting to default");
-        this->reading_batch_size_char_handle_ = 0x33;
-
+        this->reading_batch_size_char_handle_ = READING_BATCH_SIZE_DEFAULT_HANDLE;
       }
 
       // Measurement
@@ -361,7 +393,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         ESP_LOGI(TAG, "  → measurement handle = 0x%02x", ch->handle);
       } else {
         ESP_LOGE(TAG, "  Cannot discover characteristic: measurement - setting to default");
-        this->measurement_char_handle_ = 0x14;
+        this->measurement_char_handle_ = MEASUREMENT_CHAR_DEFAULT_HANDLE;
       }
 
       // (optional) UUID & serial if you need them:
@@ -370,7 +402,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         ESP_LOGI(TAG, "  → uuid handle = 0x%02x", ch->handle);
       } else {
         ESP_LOGE(TAG, "  Cannot discover characteristic: uuid - setting to default");
-        this->uuid_char_handle_ = 0x28;
+        this->uuid_char_handle_ = UUID_CHAR_DEFAULT_HANDLE;
       }
 
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_SERIAL_UUID)) {
@@ -378,13 +410,13 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         ESP_LOGI(TAG, "  → serial handle = 0x%02x", ch->handle);
        } else {
         ESP_LOGE(TAG, "  Cannot discover characteristic: serial - setting to default");
-        this->serial_number_char_handle_ = 0x2B;
+        this->serial_number_char_handle_ = SERIAL_NUMBER_CHAR_DEFAULT_HANDLE;
       }
 
       // set daults with no discovery
-      battery_char_handle_ = 0x10;
-      firmware_char_handle_ = 0x3B;
-      led_sensitivity_char_handle_ = 0x25;
+      battery_char_handle_ = BATTERY_CHAR_DEFAULT_HANDLE;
+      firmware_char_handle_ = FIRMWARE_CHAR_DEFAULT_HANDLE;
+      led_sensitivity_char_handle_ = LED_SENSITIVITY_CHAR_DEFAULT_HANDLE;
 
       this->pending_subscription_ = true;
       this->request_subscription_("service discovery");

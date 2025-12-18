@@ -18,32 +18,11 @@
 namespace esphome {
 namespace powerpal_ble {
 
-namespace espbt = esphome::esp32_ble_tracker;
-
 struct PowerpalMeasurement {
   uint16_t pulses;
   time_t timestamp;
   uint32_t watt_hours;
 };
-
-static const espbt::ESPBTUUID POWERPAL_SERVICE_UUID =
-    espbt::ESPBTUUID::from_raw("59DAABCD-12F4-25A6-7D4F-55961DCE4205");
-static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_PAIRING_CODE_UUID =
-    espbt::ESPBTUUID::from_raw("59DA0011-12F4-25A6-7D4F-55961DCE4205");  // indicate, notify, read, write
-static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_READING_BATCH_SIZE_UUID =
-    espbt::ESPBTUUID::from_raw("59DA0013-12F4-25A6-7D4F-55961DCE4205");  // indicate, notify, read, write
-static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_MEASUREMENT_UUID =
-    espbt::ESPBTUUID::from_raw("59DA0001-12F4-25A6-7D4F-55961DCE4205");  // notify, read, write
-static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_UUID_UUID =
-    espbt::ESPBTUUID::from_raw("59DA0009-12F4-25A6-7D4F-55961DCE4205");  // indicate, notify, read, write
-static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_SERIAL_UUID =
-    espbt::ESPBTUUID::from_raw("59DA0010-12F4-25A6-7D4F-55961DCE4205");  // indicate, notify, read, write
-
-static const espbt::ESPBTUUID POWERPAL_BATTERY_SERVICE_UUID = espbt::ESPBTUUID::from_uint16(0x180F);
-static const espbt::ESPBTUUID POWERPAL_BATTERY_CHARACTERISTIC_UUID = espbt::ESPBTUUID::from_uint16(0x2A19);
-
-static const uint8_t seconds_in_minute = 60;    // seconds
-static const float kw_to_w_conversion = 1000.0;    // conversion ratio
 
 class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   // class Powerpal : public esphome::ble_client::BLEClientNode, public PollingComponent {
