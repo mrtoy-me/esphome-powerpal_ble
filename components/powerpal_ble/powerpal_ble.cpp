@@ -149,7 +149,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
 
     uint16_t pulses_within_interval = data[4];
     pulses_within_interval += data[5] << 8;
-    this->daily_pulses_ += pulses_within_interval;`
+    this->daily_pulses_ += pulses_within_interval;
 
     float avg_watts_within_interval = pulses_within_interval * this->pulse_multiplier_;
 
