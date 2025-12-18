@@ -36,13 +36,13 @@ static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_SERIAL_UUID =
 static const espbt::ESPBTUUID POWERPAL_BATTERY_SERVICE_UUID = espbt::ESPBTUUID::from_uint16(0x180F);
 static const espbt::ESPBTUUID POWERPAL_BATTERY_CHARACTERISTIC_UUID = espbt::ESPBTUUID::from_uint16(0x2A19);
 
-static const uint8_t SECONDS_IN_MINUTE = 60;        // seconds
+static const float SECONDS_IN_MINUTE = 60.0;        // seconds
 static const float KW_TO_W_CONVERSION  = 1000.0;    // conversion ratio
 
 void Powerpal::setup() {
   this->authenticated_ = false;
   this->pulse_multiplier_ =
-    (float(SECONDS_IN_MINUTE * this->reading_batch_size_[0]) / (this->pulses_per_kwh_ / KW_TO_W_CONVERSION));
+    ((SECONDS_IN_MINUTE * this->reading_batch_size_[0]) / (this->pulses_per_kwh_ / KW_TO_W_CONVERSION));
 
     // gurrier
   this->reset_connection_state_();
@@ -159,7 +159,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     float avg_watts_within_interval = pulses_within_interval * this->pulse_multiplier_;
 
     ESP_LOGI(TAG, "Timestamp: %ld, Pulses: %d, Average Watts within interval: %f W, Daily Pulses: %d", unix_time, pulses_within_interval,
-             avg_watts_within_interval, daily_pulses_);
+             avg_watts_within_interval, this->daily_pulses_);
 
     if (this->power_sensor_ != nullptr) {
       this->power_sensor_->publish_state(avg_watts_within_interval);
@@ -170,7 +170,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     }
 
     if (this->watt_hours_sensor_ != nullptr) {
-       int mywatt_hrs = (uint32_t)roundf(pulses_within_interval * (this->pulses_per_kwh_ / kw_to_w_conversion));
+       int mywatt_hrs = (uint32_t)roundf(pulses_within_interval * (this->pulses_per_kwh_ / KW_TO_W_CONVERSION));
        this->watt_hours_sensor_->publish_state(mywatt_hrs);
     }
 
@@ -180,7 +180,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
 
     if (this->uptime_sensor_ != nullptr) {
       int32_t seconds_since_start = (int32_t)(unix_time - this->start_unix_time_);
-      float uptime_minutes = (float)(seconds_since_start) / 60.0;
+      float uptime_minutes = (float)(seconds_since_start) / SECONDS_IN_MINUTE;
       this->uptime_sensor_->publish_state(uptime_minutes);
     }
 
