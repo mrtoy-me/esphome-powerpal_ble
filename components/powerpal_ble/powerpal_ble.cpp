@@ -129,7 +129,7 @@ void Powerpal::parse_battery_(const uint8_t *data, uint16_t length) {
 void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
   //gurrier
   if (length < 6) {
-    ESP_LOGW(TAG, "parse_measurement_: packet too short (%hu)", length);
+    ESP_LOGW(TAG, "parse measurement: packet too short (%hu)", length);
     return;
   }
 
@@ -147,15 +147,14 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
       this->current_year_ = date_local->tm_year;
     }
 
-    uint16_t pulses_within_interval = data[4];
-    pulses_within_interval += data[5] << 8;
+    uint16_t pulses_within_interval = data[4] + (data[5] << 8);
+    //pulses_within_interval += data[5] << 8;
     this->daily_pulses_ += pulses_within_interval;
 
-    float avg_watts_within_interval = pulses_within_interval * this->pulse_multiplier_;
-
-    ESP_LOGI(TAG, "Timestamp: %ld, Within Interval: %d pulses, %f W Avg", unix_time, pulses_within_interval, avg_watts_within_interval);
+    ESP_LOGI(TAG, "Timestamp: %ld, Pulses within Interval: %hu", unix_time, pulses_within_interval);
 
     if (this->power_sensor_ != nullptr) {
+      float avg_watts_within_interval = (float)(pulses_within_interval) * this->pulse_multiplier_;
       this->power_sensor_->publish_state(avg_watts_within_interval);
     }
 
@@ -164,7 +163,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     }
 
     if (this->watt_hours_sensor_ != nullptr) {
-       int mywatt_hrs = (uint32_t)roundf(pulses_within_interval * (this->pulses_per_kwh_ / KW_TO_W_CONVERSION));
+       uint32_t mywatt_hrs = (uint32_t)(roundf((float)(pulses_within_interval) * ((float)(this->pulses_per_kwh_) / KW_TO_W_CONVERSION)));
        this->watt_hours_sensor_->publish_state(mywatt_hrs);
     }
 
@@ -190,7 +189,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
       this->daily_energy_sensor_->publish_state(energy);
 
       if (this->daily_pulses_sensor_ != nullptr) {
-        this->daily_pulses_sensor_->publish_state(daily_pulses_);
+        this->daily_pulses_sensor_->publish_state(this->daily_pulses_);
       }
       // if esphome device has a valid time component set up, use that (preferred)
       // else, use the powerpal measurement timestamps
@@ -523,7 +522,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       break;
     }  // ESP_GATTC_WRITE_CHAR_EVT
     case ESP_GATTC_NOTIFY_EVT: {
-      ESP_LOGD(TAG, "[%s] Received Notification", this->parent_->address_str());
+      ESP_LOGD(TAG, "Received Notification [%s]", this->parent_->address_str());
 
       // battery
       if (param->notify.handle == this->battery_char_handle_) {
@@ -534,7 +533,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       // measurement
       if (param->notify.handle == this->measurement_char_handle_) {
-        ESP_LOGD(TAG, "Received measurement notify event");
+        //ESP_LOGD(TAG, "Received measurement notify event");
         this->parse_measurement_(param->notify.value, param->notify.value_len);
         break;
       }
