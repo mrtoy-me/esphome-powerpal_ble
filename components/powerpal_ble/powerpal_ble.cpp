@@ -42,7 +42,7 @@ static const float KW_TO_W_CONVERSION  = 1000.0;    // conversion ratio
 void Powerpal::setup() {
   this->authenticated_ = false;
   this->pulse_multiplier_ =
-    ((SECONDS_IN_MINUTE * this->reading_batch_size_[0]) / (this->pulses_per_kwh_ / KW_TO_W_CONVERSION));
+    ((SECONDS_IN_MINUTE * (float)(this->reading_batch_size_[0])) / (float)(this->pulses_per_kwh_) / KW_TO_W_CONVERSION));
 
     // gurrier
   this->reset_connection_state_();
@@ -132,11 +132,6 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     ESP_LOGW(TAG, "parse_measurement_: packet too short (%hu)", length);
     return;
   }
-  if (this->pulses_per_kwh_ <= 0.0f) {
-    ESP_LOGW(TAG, "pulses_per_kwh must be greater than zero; skipping measurement");
-    return;
-  }
-  //
 
   ESP_LOGD(TAG, "Meaurement: DEC(%d): 0x%s", length, format_hex(data, length).c_str());
   if (length >= 6) {
@@ -158,7 +153,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
 
     float avg_watts_within_interval = pulses_within_interval * this->pulse_multiplier_;
 
-    ESP_LOGI(TAG, "Timestamp: %ld, Pulses: %d, Average Watts within interval: %f W, Daily Pulses: %d", unix_time, pulses_within_interval,
+    ESP_LOGI(TAG, "Timestamp: %ld, Pulses: %" PRIu64 ", Average Watts within interval: %f W, Daily Pulses: %" PRIu64, unix_time, pulses_within_interval,
              avg_watts_within_interval, this->daily_pulses_);
 
     if (this->power_sensor_ != nullptr) {
@@ -186,13 +181,13 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
 
     if (this->energy_sensor_ != nullptr) {
       this->total_pulses_ += pulses_within_interval;
-      float energy = this->total_pulses_ / this->pulses_per_kwh_;
+      float energy = (float)(this->total_pulses_) / (float)(this->pulses_per_kwh_);
       this->energy_sensor_->publish_state(energy);
     }
 
     if (this->daily_energy_sensor_ != nullptr) {
       // even if new day, publish last measurement window before resetting
-      float energy = this->daily_pulses_ / this->pulses_per_kwh_;
+      float energy = (float)(this->daily_pulses_) / (float)(this->pulses_per_kwh_);
       this->daily_energy_sensor_->publish_state(energy);
 
       if (this->daily_pulses_sensor_ != nullptr) {

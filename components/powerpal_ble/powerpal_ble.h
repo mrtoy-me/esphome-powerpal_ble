@@ -46,7 +46,7 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
     pairing_code_[2] = (pairing_code & 0x00FF0000) >> 16;
     pairing_code_[3] = (pairing_code & 0xFF000000) >> 24;
   }
-  void set_pulses_per_kwh(float pulses_per_kwh) { pulses_per_kwh_ = pulses_per_kwh; }
+  void set_pulses_per_kwh(uint16_t pulses_per_kwh) { pulses_per_kwh_ = pulses_per_kwh; }
 
   void set_notification_interval(uint8_t reading_batch_size) { reading_batch_size_[0] = reading_batch_size; }
   void set_apikey(std::string powerpal_apikey) { powerpal_apikey_ = powerpal_apikey; }
@@ -88,7 +88,7 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   uint64_t daily_pulses_{0};
   uint64_t total_pulses_{0};
 
-  float pulses_per_kwh_;
+  uint16_t pulses_per_kwh_;
   float pulse_multiplier_;
 
   // gurrier
