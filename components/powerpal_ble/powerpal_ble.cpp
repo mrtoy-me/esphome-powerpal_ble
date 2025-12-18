@@ -355,7 +355,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         ESP_LOGD(TAG, "Received reading_batch_size read event");
         this->decode_(param->read.value, param->read.value_len);
         if (param->read.value_len != 4) {
-          ESP_LOGW(TAG, "Length incorrect of reading batch size: %d", param->read.value_len)
+          ESP_LOGW(TAG, "reading batch size has incorrect length: %d", param->read.value_len);
           break;
         }
         if (param->read.value[0] != this->reading_batch_size_[0]) {
