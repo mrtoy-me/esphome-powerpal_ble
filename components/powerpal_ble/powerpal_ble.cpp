@@ -388,7 +388,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       // firmware
       if (param->read.handle == this->firmware_char_handle_) {
         //ESP_LOGD(TAG, "Received firmware read event");
-        ESP_LOGI(TAG, "Firmware: 0x%s", length, format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGI(TAG, "Firmware: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
         //this->decode_(param->read.value, param->read.value_len);
         break;
       }
@@ -396,7 +396,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       // led sensitivity
       if (param->read.handle == this->led_sensitivity_char_handle_) {
         //ESP_LOGD(TAG, "Received led sensitivity read event");
-        ESP_LOGI(TAG, "Led Sensitivity: 0x%s", length, format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGI(TAG, "Led Sensitivity: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
