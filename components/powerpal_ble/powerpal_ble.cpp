@@ -36,13 +36,13 @@ static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_SERIAL_UUID =
 static const espbt::ESPBTUUID POWERPAL_BATTERY_SERVICE_UUID = espbt::ESPBTUUID::from_uint16(0x180F);
 static const espbt::ESPBTUUID POWERPAL_BATTERY_CHARACTERISTIC_UUID = espbt::ESPBTUUID::from_uint16(0x2A19);
 
-static const uint8_t seconds_in_minute = 60;        // seconds
-static const float kw_to_w_conversion  = 1000.0;    // conversion ratio
+static const uint8_t SECONDS_IN_MINUTE = 60;        // seconds
+static const float KW_TO_W_CONVERSION  = 1000.0;    // conversion ratio
 
 void Powerpal::setup() {
   this->authenticated_ = false;
   this->pulse_multiplier_ =
-    ((seconds_in_minute * this->reading_batch_size_[0]) / (this->pulses_per_kwh_ / kw_to_w_conversion));
+    (float(SECONDS_IN_MINUTE * this->reading_batch_size_[0]) / (this->pulses_per_kwh_ / KW_TO_W_CONVERSION));
 
     // gurrier
   this->reset_connection_state_();
@@ -81,6 +81,7 @@ void Powerpal::reset_connection_state_() {
   this->reconnect_pending_ = false;
   this->client_connected_ = false;
 }
+
 void Powerpal::on_connect() {
   ESP_LOGI(TAG, "[%s] Connected to Powerpal GATT server", this->parent_->address_str());
   this->client_connected_ = true;
@@ -119,7 +120,7 @@ void Powerpal::on_disconnect() {
 
 
 void Powerpal::parse_battery_(const uint8_t *data, uint16_t length) {
-  ESP_LOGD(TAG, "Battery: DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length).c_str());
+  ESP_LOGD(TAG, "Battery: DEC(%d): 0x%s", length, format_hex(data, length).c_str());
   if (length == 1) {
     this->battery_->publish_state(data[0]);
   }
@@ -137,7 +138,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
   }
   //
 
-  ESP_LOGD(TAG, "Meaurement: DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length).c_str());
+  ESP_LOGD(TAG, "Meaurement: DEC(%d): 0x%s", length, format_hex(data, length).c_str());
   if (length >= 6) {
     time_t unix_time = data[0];
     unix_time += (data[1] << 8);
@@ -227,13 +228,14 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
 #endif
     }
   }
-}
+} // parse_battery_
 
 void Powerpal::decode_(const uint8_t *data, uint16_t length) {
-  ESP_LOGD(TAG, "DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length).c_str());
+  //ESP_LOGD(TAG, "DEC(%d): 0x%s", length, this->pkt_to_hex_(data, length).c_str());
+  ESP_LOGD(TAG, "DEC(%d): 0x%s", length, format_hex(data, length).c_str());
 }
 
-std::string Powerpal::pkt_to_hex_(const uint8_t* data, uint16_t len) {
+// std::string Powerpal::pkt_to_hex_(const uint8_t* data, uint16_t len) {
   // char buf[64];
   // memset(buf, 0, 64);
   // for (int i = 0; i < len; i++)
@@ -242,10 +244,10 @@ std::string Powerpal::pkt_to_hex_(const uint8_t* data, uint16_t len) {
   // return ret;
 
   //gurrier
-  if (data == nullptr || len == 0)
-    return {};
+  // if (data == nullptr || len == 0)
+  //   return {};
 
-  return format_hex(data, len);
+  // return format_hex(data, len);
 
   // static constexpr char HEXMAP[] = "0123456789abcdef";
   // std::string ret;
@@ -256,8 +258,8 @@ std::string Powerpal::pkt_to_hex_(const uint8_t* data, uint16_t len) {
   //   ret.push_back(HEXMAP[byte & 0x0F]);
   // }
   // return ret;
-}
-std::string Powerpal::uuid_to_device_id_(const uint8_t *data, uint16_t length) {
+// }
+// std::string Powerpal::uuid_to_device_id_(const uint8_t *data, uint16_t length) {
   // const char* hexmap[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"};
   // std::string device_id;
   // for (int i = length-1; i >= 0; i--) {
@@ -265,21 +267,21 @@ std::string Powerpal::uuid_to_device_id_(const uint8_t *data, uint16_t length) {
   //   device_id.append(hexmap[data[i] & 0x0F]);
   // }
   // return device_id;
-  if (data == nullptr || length == 0)
-    return {};
+//   if (data == nullptr || length == 0)
+//     return {};
 
-  static constexpr char HEXMAP[] = "0123456789abcdef";
-  std::string device_id;
-  device_id.reserve(static_cast<size_t>(length) * 2);
-  for (int i = static_cast<int>(length) - 1; i >= 0; i--) {
-    uint8_t byte = data[i];
-    device_id.push_back(HEXMAP[(byte & 0xF0) >> 4]);
-    device_id.push_back(HEXMAP[byte & 0x0F]);
-  }
-  return device_id;
-}
+//   static constexpr char HEXMAP[] = "0123456789abcdef";
+//   std::string device_id;
+//   device_id.reserve(static_cast<size_t>(length) * 2);
+//   for (int i = static_cast<int>(length) - 1; i >= 0; i--) {
+//     uint8_t byte = data[i];
+//     device_id.push_back(HEXMAP[(byte & 0xF0) >> 4]);
+//     device_id.push_back(HEXMAP[byte & 0x0F]);
+//   }
+//   return device_id;
+// }
 
-std::string Powerpal::serial_to_apikey_(const uint8_t *data, uint16_t length) {
+// std::string Powerpal::serial_to_apikey_(const uint8_t *data, uint16_t length) {
   // const char* hexmap[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"};
   // std::string api_key;
   // for (int i = 0; i < length; i++) {
@@ -290,22 +292,22 @@ std::string Powerpal::serial_to_apikey_(const uint8_t *data, uint16_t length) {
   //   api_key.append(hexmap[data[i] & 0x0F]);
   // }
   // return api_key;
-  if (data == nullptr || length == 0)
-    return {};
+//   if (data == nullptr || length == 0)
+//     return {};
 
-  static constexpr char HEXMAP[] = "0123456789abcdef";
-  std::string api_key;
-  api_key.reserve(static_cast<size_t>(length) * 2 + 4);
-  for (uint16_t i = 0; i < length; i++) {
-    if (i == 4 || i == 6 || i == 8 || i == 10) {
-      api_key.push_back('-');
-    }
-    uint8_t byte = data[i];
-    api_key.push_back(HEXMAP[(byte & 0xF0) >> 4]);
-    api_key.push_back(HEXMAP[byte & 0x0F]);
-  }
-  return api_key;
-}
+//   static constexpr char HEXMAP[] = "0123456789abcdef";
+//   std::string api_key;
+//   api_key.reserve(static_cast<size_t>(length) * 2 + 4);
+//   for (uint16_t i = 0; i < length; i++) {
+//     if (i == 4 || i == 6 || i == 8 || i == 10) {
+//       api_key.push_back('-');
+//     }
+//     uint8_t byte = data[i];
+//     api_key.push_back(HEXMAP[(byte & 0xF0) >> 4]);
+//     api_key.push_back(HEXMAP[byte & 0x0F]);
+//   }
+//   return api_key;
+// }
 
 void Powerpal::request_subscription_(const char *trigger_reason) {
   if (!this->pending_subscription_)
@@ -481,7 +483,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       // serialNumber
       if (param->read.handle == this->serial_number_char_handle_) {
         ESP_LOGI(TAG, "Received serial_number read event");
-        this->powerpal_device_id_ = this->uuid_to_device_id_(param->read.value, param->read.value_len);
+        this->powerpal_device_id_ = format_hex(param->read.value, param->read.value_len);
         ESP_LOGI(TAG, "Powerpal device id: %s", this->powerpal_device_id_.c_str());
 
         break;
@@ -490,7 +492,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       // uuid
       if (param->read.handle == this->uuid_char_handle_) {
         ESP_LOGI(TAG, "Received uuid read event");
-        this->powerpal_apikey_ = this->serial_to_apikey_(param->read.value, param->read.value_len);
+        this->powerpal_apikey_ = format_hex(param->read.value, param->read.value_len);
         ESP_LOGI(TAG, "Powerpal apikey: %s", this->powerpal_apikey_.c_str());
 
         break;
