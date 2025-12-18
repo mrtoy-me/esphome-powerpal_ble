@@ -42,7 +42,7 @@ static const float KW_TO_W_CONVERSION  = 1000.0;    // conversion ratio
 void Powerpal::setup() {
   this->authenticated_ = false;
   this->pulse_multiplier_ =
-    ((SECONDS_IN_MINUTE * (float)(this->reading_batch_size_[0])) / (float)(this->pulses_per_kwh_) / KW_TO_W_CONVERSION));
+    ((SECONDS_IN_MINUTE * (float)(this->reading_batch_size_[0])) / ((float)(this->pulses_per_kwh_) / KW_TO_W_CONVERSION));
 
     // gurrier
   this->reset_connection_state_();
