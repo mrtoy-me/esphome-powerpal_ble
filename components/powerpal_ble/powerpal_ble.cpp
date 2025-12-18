@@ -120,7 +120,7 @@ void Powerpal::on_disconnect() {
 
 
 void Powerpal::parse_battery_(const uint8_t *data, uint16_t length) {
-  ESP_LOGD(TAG, "Battery: DEC(%d): 0x%s", length, format_hex(data, length).c_str());
+  ESP_LOGI(TAG, "Battery: DEC(%d): 0x%s", length, format_hex(data, length).c_str());
   if (length == 1) {
     this->battery_->publish_state(data[0]);
   }
@@ -133,7 +133,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     return;
   }
 
-  ESP_LOGD(TAG, "Meaurement: DEC(%d): 0x%s", length, format_hex(data, length).c_str());
+  ESP_LOGD(TAG, "Measurement: DEC(%d): 0x%s", length, format_hex(data, length).c_str());
   if (length >= 6) {
     time_t unix_time = data[0];
     unix_time += (data[1] << 8);
@@ -387,21 +387,22 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       // firmware
       if (param->read.handle == this->firmware_char_handle_) {
-        ESP_LOGD(TAG, "Received firmware read event");
-        this->decode_(param->read.value, param->read.value_len);
+        //ESP_LOGD(TAG, "Received firmware read event");
+        ESP_LOGI(TAG, "Firmware: 0x%s", length, format_hex(param->read.value, param->read.value_len).c_str());
+        //this->decode_(param->read.value, param->read.value_len);
         break;
       }
 
       // led sensitivity
       if (param->read.handle == this->led_sensitivity_char_handle_) {
-        ESP_LOGD(TAG, "Received led sensitivity read event");
-        this->decode_(param->read.value, param->read.value_len);
+        //ESP_LOGD(TAG, "Received led sensitivity read event");
+        ESP_LOGI(TAG, "Led Sensitivity: 0x%s", length, format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
       // serialNumber
       if (param->read.handle == this->serial_number_char_handle_) {
-        ESP_LOGI(TAG, "Received serial_number read event");
+        ESP_LOGD(TAG, "Received serial_number read event");
         this->powerpal_device_id_ = format_hex(param->read.value, param->read.value_len);
         ESP_LOGI(TAG, "Powerpal device id: %s", this->powerpal_device_id_.c_str());
 
