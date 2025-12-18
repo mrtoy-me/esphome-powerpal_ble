@@ -151,7 +151,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     //pulses_within_interval += data[5] << 8;
     this->daily_pulses_ += pulses_within_interval;
 
-    ESP_LOGI(TAG, "Timestamp: %ld, Pulses within Interval: %hu", unix_time, pulses_within_interval);
+    //ESP_LOGI(TAG, "Timestamp: %ld, Pulses within Interval: %hu", unix_time, pulses_within_interval);
 
     if (this->power_sensor_ != nullptr) {
       float avg_watts_within_interval = (float)(pulses_within_interval) * this->pulse_multiplier_;
