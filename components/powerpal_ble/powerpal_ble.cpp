@@ -40,7 +40,6 @@ static const float SECONDS_IN_MINUTE   = 60.0;
 static const float KW_TO_W_CONVERSION  = 1000.0;    // conversion ratio
 
 void Powerpal::setup() {
-  this->authenticated_ = false;
   this->pulse_multiplier_ =
     ((SECONDS_IN_MINUTE * (float)(this->reading_batch_size_[0])) / ((float)(this->pulses_per_kwh_) / KW_TO_W_CONVERSION));
 
@@ -71,7 +70,6 @@ void Powerpal::on_connect() {
 }
 
 void Powerpal::request_subscription_(const char *trigger_reason) {
-  // if not sub pending or sub try return
   if ((this->powerpal_state_ == CONNECTION_PENDING) || (this->powerpal_state_ == AUTHENICATED)) return;
 
   if (this->powerpal_state_ == SUBSCRIPTION_IN_PROGRESS) {
