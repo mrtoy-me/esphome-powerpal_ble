@@ -93,9 +93,54 @@ void Powerpal::on_connect() {
   this->stored_measurements_count_ = 0;
   this->last_measurement_timestamp_s_ = 0;
   this->authenticated_ = false;
-
+  // pending handles
   this->set_timeout(1000, [this]() { this->request_subscription_("post-connect"); });
 }
+
+void Powerpal::request_subscription_(const char *trigger_reason) {
+  // if not sub pending or sub try return
+  if (!this->pending_subscription_)
+    return;
+// if sub try return
+  if (this->subscription_in_progress_) {
+    ESP_LOGV(TAG, "[%s] Subscription already in progress, ignoring trigger '%s'", this->parent_->address_str(), trigger_reason);
+    return;
+  }
+  // if Pending handlies
+  if (this->pairing_code_char_handle_ == 0 || this->reading_batch_size_char_handle_ == 0 || this->measurement_char_handle_ == 0) {
+    ESP_LOGD(TAG, "[%s] GATT handles not ready, waiting to subscribe (%s)", this->parent_->address_str(), trigger_reason);
+    if (!this->subscription_retry_scheduled_) {
+      this->subscription_retry_scheduled_ = true;
+      this->set_timeout(500, [this]() {
+        // still waiting for handles - nothing changes just fire off another delay before calling request subscription again
+        this->subscription_retry_scheduled_ = false;
+        this->request_subscription_("wait-handles");
+      });
+    }
+    return;
+  }
+
+  // ok so subscrioption pending or a retry  so try again
+  ESP_LOGI(TAG, "[%s] Writing pairing code to resume notifications (%s)", this->parent_->address_str(), trigger_reason);
+  auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
+                                         this->pairing_code_char_handle_, sizeof(this->pairing_code_),
+                                         this->pairing_code_, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (status != ESP_OK) {
+    ESP_LOGW(TAG, "[%s] Failed to submit pairing write (%s), status=%d", this->parent_->address_str(), trigger_reason, status);
+    // retry a
+    if (!this->subscription_retry_scheduled_) {
+      this->subscription_retry_scheduled_ = true;
+      this->set_timeout(2000, [this]() {
+        this->subscription_retry_scheduled_ = false;
+        this->request_subscription_("retry");
+      });
+    }
+    return;
+  }
+// if write successful subscription is in progress
+  this->subscription_in_progress_ = true;
+}
+
 
 void Powerpal::on_disconnect() {
   ESP_LOGW(TAG, "[%s] Disconnected from Powerpal GATT server", this->parent_->address_str());
@@ -227,45 +272,6 @@ void Powerpal::decode_(const uint8_t *data, uint16_t length) {
   ESP_LOGD(TAG, "DEC(%d): 0x%s", length, format_hex(data, length).c_str());
 }
 
-void Powerpal::request_subscription_(const char *trigger_reason) {
-  if (!this->pending_subscription_)
-    return;
-
-  if (this->subscription_in_progress_) {
-    ESP_LOGV(TAG, "[%s] Subscription already in progress, ignoring trigger '%s'", this->parent_->address_str(), trigger_reason);
-    return;
-  }
-
-  if (this->pairing_code_char_handle_ == 0 || this->reading_batch_size_char_handle_ == 0 || this->measurement_char_handle_ == 0) {
-    ESP_LOGD(TAG, "[%s] GATT handles not ready, waiting to subscribe (%s)", this->parent_->address_str(), trigger_reason);
-    if (!this->subscription_retry_scheduled_) {
-      this->subscription_retry_scheduled_ = true;
-      this->set_timeout(500, [this]() {
-        this->subscription_retry_scheduled_ = false;
-        this->request_subscription_("wait-handles");
-      });
-    }
-    return;
-  }
-
-  ESP_LOGI(TAG, "[%s] Writing pairing code to resume notifications (%s)", this->parent_->address_str(), trigger_reason);
-  auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
-                                         this->pairing_code_char_handle_, sizeof(this->pairing_code_),
-                                         this->pairing_code_, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
-  if (status != ESP_OK) {
-    ESP_LOGW(TAG, "[%s] Failed to submit pairing write (%s), status=%d", this->parent_->address_str(), trigger_reason, status);
-    if (!this->subscription_retry_scheduled_) {
-      this->subscription_retry_scheduled_ = true;
-      this->set_timeout(2000, [this]() {
-        this->subscription_retry_scheduled_ = false;
-        this->request_subscription_("retry");
-      });
-    }
-    return;
-  }
-
-  this->subscription_in_progress_ = true;
-}
 
 void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
@@ -340,6 +346,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       this->pending_subscription_ = true;
       this->request_subscription_("service discovery");
+      // subscription pending
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
