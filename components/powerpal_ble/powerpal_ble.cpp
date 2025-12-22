@@ -36,7 +36,7 @@ static const espbt::ESPBTUUID POWERPAL_CHARACTERISTIC_SERIAL_UUID =
 static const espbt::ESPBTUUID POWERPAL_BATTERY_SERVICE_UUID = espbt::ESPBTUUID::from_uint16(0x180F);
 static const espbt::ESPBTUUID POWERPAL_BATTERY_CHARACTERISTIC_UUID = espbt::ESPBTUUID::from_uint16(0x2A19);
 
-static const float SECONDS_IN_MINUTE = 60.0;        // seconds
+static const float SECONDS_IN_MINUTE   = 60.0;
 static const float KW_TO_W_CONVERSION  = 1000.0;    // conversion ratio
 
 void Powerpal::setup() {
@@ -44,7 +44,6 @@ void Powerpal::setup() {
   this->pulse_multiplier_ =
     ((SECONDS_IN_MINUTE * (float)(this->reading_batch_size_[0])) / ((float)(this->pulses_per_kwh_) / KW_TO_W_CONVERSION));
 
-    // gurrier
   this->reset_connection_state_();
  }
 
@@ -59,108 +58,78 @@ void Powerpal::dump_config() {
   LOG_SENSOR("  ", "Total Energy", this->energy_sensor_);
 }
 
-// gurrier
 void Powerpal::reset_connection_state_() {
-  this->authenticated_ = false;
-  this->pending_subscription_ = false;
-  this->subscription_in_progress_ = false;
+  this->powerpal_state_ = CONNECTION_PENDING;
+  this->establish_handles_retry_scheduled_ = false;
   this->subscription_retry_scheduled_ = false;
-
-  // this->pairing_code_char_handle_ = 0;
-  // this->reading_batch_size_char_handle_ = 0;
-  // this->measurement_char_handle_ = 0;
-  // this->battery_char_handle_ = 0;
-  // this->led_sensitivity_char_handle_ = 0;
-  // this->firmware_char_handle_ = 0;
-  // this->uuid_char_handle_ = 0;
-  // this->serial_number_char_handle_ = 0;
-
-  this->stored_measurements_count_ = 0;
-  this->stored_measurements_.clear();
-  this->last_measurement_timestamp_s_ = 0;
-  this->reconnect_pending_ = false;
-  this->client_connected_ = false;
 }
 
 void Powerpal::on_connect() {
   ESP_LOGI(TAG, "[%s] Connected to Powerpal GATT server", this->parent_->address_str());
-  this->client_connected_ = true;
-  this->pending_subscription_ = true;
-  this->subscription_in_progress_ = false;
-  this->subscription_retry_scheduled_ = false;
-  this->reconnect_pending_ = false;
-  this->stored_measurements_.clear();
-  this->stored_measurements_count_ = 0;
-  this->last_measurement_timestamp_s_ = 0;
-  this->authenticated_ = false;
-  // pending handles
-  this->set_timeout(1000, [this]() { this->request_subscription_("post-connect"); });
+  this->powerpal_state_ = ESTABLISH_HANDLES_PENDING;
+  this->set_timeout(1000, [this]() { this->request_subscription_("Establish Handles Pending"); });
 }
 
 void Powerpal::request_subscription_(const char *trigger_reason) {
   // if not sub pending or sub try return
-  if (!this->pending_subscription_)
-    return;
-// if sub try return
-  if (this->subscription_in_progress_) {
+  if ((this->powerpal_state_ == CONNECTION_PENDING) || (this->powerpal_state_ == AUTHENICATED)) return;
+
+  if (this->powerpal_state_ == SUBSCRIPTION_IN_PROGRESS) {
     ESP_LOGV(TAG, "[%s] Subscription already in progress, ignoring trigger '%s'", this->parent_->address_str(), trigger_reason);
     return;
   }
-  // if Pending handlies
-  if (this->pairing_code_char_handle_ == 0 || this->reading_batch_size_char_handle_ == 0 || this->measurement_char_handle_ == 0) {
+
+  if (this->powerpal_state_ == ESTABLISH_HANDLES_PENDING) {
     ESP_LOGD(TAG, "[%s] GATT handles not ready, waiting to subscribe (%s)", this->parent_->address_str(), trigger_reason);
-    if (!this->subscription_retry_scheduled_) {
-      this->subscription_retry_scheduled_ = true;
+    if (!this->establish_handles_retry_scheduled_) {
+      this->establish_handles_retry_scheduled_ = true;
       this->set_timeout(500, [this]() {
         // still waiting for handles - nothing changes just fire off another delay before calling request subscription again
-        this->subscription_retry_scheduled_ = false;
-        this->request_subscription_("wait-handles");
+        this->establish_handles_retry_scheduled_ = false;
+        this->request_subscription_("retry establish handles");
       });
     }
     return;
   }
 
-  // ok so subscrioption pending or a retry  so try again
+  // SUBSCRITION_PENDING
   ESP_LOGI(TAG, "[%s] Writing pairing code to resume notifications (%s)", this->parent_->address_str(), trigger_reason);
   auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
                                          this->pairing_code_char_handle_, sizeof(this->pairing_code_),
                                          this->pairing_code_, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status != ESP_OK) {
     ESP_LOGW(TAG, "[%s] Failed to submit pairing write (%s), status=%d", this->parent_->address_str(), trigger_reason, status);
-    // retry a
     if (!this->subscription_retry_scheduled_) {
       this->subscription_retry_scheduled_ = true;
       this->set_timeout(2000, [this]() {
         this->subscription_retry_scheduled_ = false;
-        this->request_subscription_("retry");
+        this->request_subscription_("retry subscription");
       });
     }
     return;
   }
 // if write successful subscription is in progress
-  this->subscription_in_progress_ = true;
+  this->powerpal_state_ = SUBSCRIPTION_IN_PROGRESS;
 }
 
 
 void Powerpal::on_disconnect() {
   ESP_LOGW(TAG, "[%s] Disconnected from Powerpal GATT server", this->parent_->address_str());
-  this->reset_connection_state_();
+  this->subscription_retry_scheduled_ = false;
+   this->establish_handles_retry_scheduled_ = false;
+  this->powerpal_state_ = DISCONNECTED;
 
-  if (!this->reconnect_pending_) {
-    this->reconnect_pending_ = true;
-    this->set_timeout(10000, [this]() {
-      this->reconnect_pending_ = false;
-      if (this->parent_ == nullptr)
-        return;
-      if (this->client_connected_) {
-        ESP_LOGD(TAG, "[%s] Reconnect timer fired but client already connected", this->parent_->address_str());
-        return;
-      }
-      ESP_LOGI(TAG, "[%s] Attempting BLE reconnect", this->parent_->address_str());
-      this->pending_subscription_ = true;
-      this->parent_->connect();
-    });
-  }
+  this->set_timeout(10000, [this]() {
+    if (this->parent_ == nullptr) return;
+    if (this->powerpal_state_ >= ESTABLISH_HANDLES_PENDING) {
+      ESP_LOGD(TAG, "[%s] Reconnect timer fired but client already connected", this->parent_->address_str());
+      return;
+    }
+    ESP_LOGI(TAG, "[%s] Attempting BLE reconnect", this->parent_->address_str());
+    this->powerpal_state_ = CONNECTION_PENDING;
+    this->parent_->connect();
+  });
+
 }
 
 
@@ -344,8 +313,8 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       this->firmware_char_handle_ = FIRMWARE_CHAR_DEFAULT_HANDLE;
       this->led_sensitivity_char_handle_ = LED_SENSITIVITY_CHAR_DEFAULT_HANDLE;
 
-      this->pending_subscription_ = true;
-      this->request_subscription_("service discovery");
+      this->powerpal_state_ = SUBSCRIPTION_PENDING;
+      this->request_subscription_("Got Handles - pending subscription");
       // subscription pending
       break;
     }
@@ -431,10 +400,9 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       ESP_LOGD(TAG, "[%s] ESP_GATTC_WRITE_CHAR_EVT (Write confirmed)", this->parent_->address_str());
 
       if (param->write.handle == this->pairing_code_char_handle_) {
-        this->subscription_in_progress_ = false;
         if (param->write.status != ESP_GATT_OK) {
           ESP_LOGW(TAG, "Error writing pairing code at handle %d, status=%d", param->write.handle, param->write.status);
-          this->pending_subscription_ = true;
+          this->powerpal_state_ = SUBSCRIPTION_PENDING;
           if (!this->subscription_retry_scheduled_) {
             this->subscription_retry_scheduled_ = true;
             this->set_timeout(2000, [this]() {
@@ -444,10 +412,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
           }
           break;
         }
-
-        this->authenticated_ = true;
-        this->pending_subscription_ = false;
-        this->subscription_retry_scheduled_ = false;
+        this->powerpal_state_ = AUTHENICATED;
 
         auto read_reading_batch_size_status =
             esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
@@ -557,16 +522,12 @@ void Powerpal::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       if (param->ble_security.auth_cmpl.success) {
         ESP_LOGI(TAG, "[%s] Authentication completed", this->parent_->address_str());
-        this->pending_subscription_ = true;
-        this->subscription_in_progress_ = false;
-        this->subscription_retry_scheduled_ = false;
+        this->powerpal_state_ = SUBSCRIPTION_PENDING;
         this->request_subscription_("auth-complete");
       } else {
-        ESP_LOGW(TAG, "[%s] Authentication failed, reason=0x%02x", this->parent_->address_str(),
-                 param->ble_security.auth_cmpl.fail_reason);
-        this->pending_subscription_ = false;
-        this->subscription_in_progress_ = false;
-        this->subscription_retry_scheduled_ = false;
+        ESP_LOGW(TAG, "[%s] Authentication failed, reason=0x%02x", this->parent_->address_str(), param->ble_security.auth_cmpl.fail_reason);
+        this->powerpal_state_ = FAILED_TO_AUTHENICATE;
+        this->mark_failed();
       }
       break;
     }

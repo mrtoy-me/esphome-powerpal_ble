@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/ble_client/ble_client.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+//#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -13,7 +13,7 @@
 #include <ctime>
 #endif
 
-#include <esp_gattc_api.h>
+//#include <esp_gattc_api.h>
 
 namespace esphome {
 namespace powerpal_ble {
@@ -25,12 +25,11 @@ struct PowerpalMeasurement {
 };
 
 class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
-  // class Powerpal : public esphome::ble_client::BLEClientNode, public PollingComponent {
+
  public:
   void setup() override;
-  // void loop() override;
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override;
+
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
   // gurrier
@@ -67,11 +66,18 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 #endif
 
  protected:
-  void decode_(const uint8_t *data, uint16_t length);
 
-  // std::string pkt_to_hex_(const uint8_t *data, uint16_t len);
-  // std::string serial_to_apikey_(const uint8_t *data, uint16_t length);
-  // std::string uuid_to_device_id_(const uint8_t *data, uint16_t length);
+   enum StateCodes {
+     DISCONNECTED = 0,
+     CONNECTION_PENDING,
+     ESTABLISH_HANDLES_PENDING,
+     SUBSCRIPTION_PENDING,
+     SUBSCRIPTION_IN_PROGRESS,
+     AUTHENICATED,
+     FAILED_TO_AUTHENICATE,
+ } powerpal_state_{DISCONNECTED};
+
+  void decode_(const uint8_t *data, uint16_t length);
 
   void parse_battery_(const uint8_t *data, uint16_t length);
   void parse_measurement_(const uint8_t *data, uint16_t length);
@@ -80,7 +86,6 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 
   uint8_t pairing_code_[4];
   uint8_t reading_batch_size_[4] = {0x01, 0x00, 0x00, 0x00};
-  uint8_t stored_measurements_count_{0};
 
   uint16_t current_year_{0};
   uint16_t day_of_last_measurement_{0};
@@ -92,17 +97,12 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   float pulse_multiplier_;
 
   // gurrier
-  uint32_t last_measurement_timestamp_s_{0};
 
   void request_subscription_(const char *trigger_reason);
   void reset_connection_state_();
 
-  bool authenticated_{false};
-  bool pending_subscription_{false};
-  bool subscription_in_progress_{false};
   bool subscription_retry_scheduled_{false};
-  bool reconnect_pending_{false};
-  bool client_connected_{false};
+  bool establish_handles_retry_scheduled_{false};
 
   sensor::Sensor *battery_{nullptr};
   sensor::Sensor *daily_energy_sensor_{nullptr};
@@ -117,7 +117,6 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   std::string powerpal_apikey_;
   std::string powerpal_device_id_;
 
-  std::vector<PowerpalMeasurement> stored_measurements_;
 
 #ifdef USE_TIME
   optional<time::RealTimeClock *> time_{};
@@ -125,16 +124,6 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 
   time_t start_unix_time_;
 
-  // // almost should be considered constants
-  // uint16_t pairing_code_char_handle_ = 0x2e;
-  // uint16_t reading_batch_size_char_handle_ = 0x33;
-
-  // uint16_t battery_char_handle_ = 0x10;
-  // uint16_t firmware_char_handle_ = 0x3b;
-  // uint16_t led_sensitivity_char_handle_ = 0x25;
-  // uint16_t measurement_char_handle_ = 0x14;
-  // uint16_t serial_number_char_handle_ = 0x2b;
-  // uint16_t uuid_char_handle_ = 0x28;
   uint16_t pairing_code_char_handle_{0};
   uint16_t reading_batch_size_char_handle_{0};
   uint16_t measurement_char_handle_{0};
