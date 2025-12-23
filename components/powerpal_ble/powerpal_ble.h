@@ -15,8 +15,7 @@
 
 //#include <esp_gattc_api.h>
 
-namespace esphome {
-namespace powerpal_ble {
+namespace esphome::powerpal_ble {
 
 struct PowerpalMeasurement {
   uint16_t pulses;
@@ -31,10 +30,6 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
-
-  // gurrier
-  void on_connect();
-  void on_disconnect();
 
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -66,8 +61,19 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 #endif
 
  protected:
+  void on_connect();
+  void on_disconnect();
 
-   enum StateCodes {
+  void parse_battery_(const uint8_t *data, uint16_t length);
+  void parse_measurement_(const uint8_t *data, uint16_t length);
+
+  void request_subscription_(const char *trigger_reason);
+  void reset_connection_state_();
+
+  bool subscription_retry_scheduled_{false};
+  bool establish_handles_retry_scheduled_{false};
+
+  enum StateCodes {
      DISCONNECTED = 0,
      CONNECTION_PENDING,
      ESTABLISH_HANDLES_PENDING,
@@ -75,34 +81,9 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
      SUBSCRIPTION_IN_PROGRESS,
      AUTHENICATED,
      FAILED_TO_AUTHENICATE,
- } powerpal_state_{DISCONNECTED};
+  } powerpal_state_{DISCONNECTED};
 
-  void decode_(const uint8_t *data, uint16_t length);
-
-  void parse_battery_(const uint8_t *data, uint16_t length);
-  void parse_measurement_(const uint8_t *data, uint16_t length);
-
-  //bool authenticated_;
-
-  uint8_t pairing_code_[4];
-  uint8_t reading_batch_size_[4] = {0x01, 0x00, 0x00, 0x00};
-
-  uint16_t current_year_{0};
-  uint16_t day_of_last_measurement_{0};
-
-  uint64_t daily_pulses_{0};
-  uint64_t total_pulses_{0};
-
-  uint16_t pulses_per_kwh_;
   float pulse_multiplier_;
-
-  // gurrier
-
-  void request_subscription_(const char *trigger_reason);
-  void reset_connection_state_();
-
-  bool subscription_retry_scheduled_{false};
-  bool establish_handles_retry_scheduled_{false};
 
   sensor::Sensor *battery_{nullptr};
   sensor::Sensor *daily_energy_sensor_{nullptr};
@@ -117,6 +98,28 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   std::string powerpal_apikey_;
   std::string powerpal_device_id_;
 
+  uint8_t pairing_code_[4];
+  uint8_t reading_batch_size_[4] = {0x01, 0x00, 0x00, 0x00};
+
+  uint16_t current_year_{0};
+  uint16_t day_of_last_measurement_{0};
+
+  // configured in YAML
+  uint16_t pulses_per_kwh_;
+
+  // handles
+  uint16_t pairing_code_char_handle_{0};
+  uint16_t reading_batch_size_char_handle_{0};
+
+  uint16_t battery_char_handle_{0};
+  uint16_t firmware_char_handle_{0};
+  uint16_t led_sensitivity_char_handle_{0};
+  uint16_t measurement_char_handle_{0};
+  uint16_t serial_number_char_handle_{0};
+  uint16_t uuid_char_handle_{0};
+
+  uint64_t daily_pulses_{0};
+  uint64_t total_pulses_{0};
 
 #ifdef USE_TIME
   optional<time::RealTimeClock *> time_{};
@@ -124,16 +127,6 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 
   time_t start_unix_time_;
 
-  uint16_t pairing_code_char_handle_{0};
-  uint16_t reading_batch_size_char_handle_{0};
-  uint16_t measurement_char_handle_{0};
-
-  uint16_t battery_char_handle_{0};
-  uint16_t led_sensitivity_char_handle_{0};
-  uint16_t firmware_char_handle_{0};
-  uint16_t uuid_char_handle_{0};
-  uint16_t serial_number_char_handle_{0};
 };
 
-} // namespace powerpal_ble
-} // namespace esphome
+} // namespace esphome::powerpal_ble
