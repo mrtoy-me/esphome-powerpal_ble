@@ -129,8 +129,12 @@ void Powerpal::on_disconnect() {
 
 void Powerpal::parse_battery_(const uint8_t *data, uint16_t length) {
   ESP_LOGI(TAG, "Battery state: 0x%s", format_hex(data, length).c_str());
-  if (length == BATTERY_STATUS_LENGTH) {
-    this->battery_->publish_state(data[0]);
+  if ((this->battery_level_sensor_ != nullptr) { // should not be needed
+    if (length == BATTERY_STATUS_LENGTH) {
+      this->battery_level_sensor_->publish_state(data[0]);
+    } else {
+      ESP_LOGW(TAG, "Skip publishing battery level - incorrect length: %hu", length);
+    }
   }
 }
 
@@ -416,7 +420,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
           }
         }
 
-        if (this->battery_ != nullptr) {
+        if (this->battery_level_sensor != nullptr) {
           // read battery
           read_status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->battery_char_handle_, ESP_GATT_AUTH_REQ_NONE);
           if (read_status) {

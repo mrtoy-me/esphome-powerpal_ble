@@ -46,15 +46,15 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   void set_apikey(std::string powerpal_apikey) { powerpal_apikey_ = powerpal_apikey; }
   void set_device_id(std::string powerpal_device_id) { powerpal_device_id_ = powerpal_device_id; }
 
-  void set_battery(sensor::Sensor *battery) { battery_ = battery; }
+  void set_set_battery_level_sensor(sensor::Sensor *battery_level_sensor) { battery_level_sensor_ = battery_level_sensor; }
   void set_daily_energy_sensor(sensor::Sensor *daily_energy_sensor) { daily_energy_sensor_ = daily_energy_sensor; }
   void set_daily_pulses_sensor(sensor::Sensor *daily_pulses_sensor) { daily_pulses_sensor_ = daily_pulses_sensor;}
   void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
   void set_pulses_sensor(sensor::Sensor *pulses_sensor) { pulses_sensor_ = pulses_sensor;}
-  void set_timestamp(sensor::Sensor *timestamp_sensor) { timestamp_sensor_ = timestamp_sensor;}
-  void set_uptime(sensor::Sensor *uptime_sensor) { uptime_sensor_ = uptime_sensor;}
-  void set_watt_hours(sensor::Sensor *watt_hours_sensor) {watt_hours_sensor_ = watt_hours_sensor;}
+  void set_timestamp_sensor(sensor::Sensor *timestamp_sensor) { timestamp_sensor_ = timestamp_sensor;}
+  void set_uptime_sensor(sensor::Sensor *uptime_sensor) { uptime_sensor_ = uptime_sensor;}
+  void set_watt_hours_sensor(sensor::Sensor *watt_hours_sensor) {watt_hours_sensor_ = watt_hours_sensor;}
 
 #ifdef USE_TIME
   void set_time(time::RealTimeClock *time) { time_ = time; }
@@ -85,7 +85,7 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
 
   float pulse_multiplier_;
 
-  sensor::Sensor *battery_{nullptr};
+  sensor::Sensor *battery_level_sensor_{nullptr};
   sensor::Sensor *daily_energy_sensor_{nullptr};
   sensor::Sensor *daily_pulses_sensor_{nullptr};
   sensor::Sensor *energy_sensor_{nullptr};

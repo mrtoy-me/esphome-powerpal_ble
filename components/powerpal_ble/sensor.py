@@ -167,7 +167,7 @@ async def to_code(config):
     # sensors
     if CONF_BATTERY_LEVEL in config:
         sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery(sens))
+        cg.add(var.set_battery_level_sensor(sens))
 
     if CONF_DAILY_ENERGY in config:
         sens = await sensor.new_sensor(config[CONF_DAILY_ENERGY])
@@ -191,12 +191,12 @@ async def to_code(config):
 
     if CONF_TIME_STAMP in config:
         sens = await sensor.new_sensor(config[CONF_TIME_STAMP])
-        cg.add(var.set_timestamp(sens))
+        cg.add(var.set_timestamp_sensor(sens))
 
     if CONF_UPTIME in config:
         sens = await sensor.new_sensor(config[CONF_UPTIME])
-        cg.add(var.set_uptime(sens))
+        cg.add(var.set_uptime_sensor(sens))
 
     if CONF_WATT_HOURS in config:
         sens = await sensor.new_sensor(config[CONF_WATT_HOURS])
-        cg.add(var.set_watt_hours(sens))
+        cg.add(var.set_watt_hours_sensor(sens))
