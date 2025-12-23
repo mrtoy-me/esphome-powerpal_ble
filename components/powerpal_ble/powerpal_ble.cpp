@@ -47,7 +47,7 @@ void Powerpal::dump_config() {
   ESP_LOGCONFIG(TAG, "  Pulses / kWh: %i", this->pulses_per_kwh_);
   ESP_LOGCONFIG(TAG, "  Measurement Interval: %imin", this->reading_batch_size_[0]);
 
-  LOG_SENSOR("  ", "Battery", this->battery_);
+  LOG_SENSOR("  ", "Battery", this->battery_level_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
   LOG_SENSOR("  ", "Daily Energy", this->daily_energy_sensor_);
   LOG_SENSOR("  ", "Total Energy", this->energy_sensor_);
@@ -129,7 +129,7 @@ void Powerpal::on_disconnect() {
 
 void Powerpal::parse_battery_(const uint8_t *data, uint16_t length) {
   ESP_LOGI(TAG, "Battery state: 0x%s", format_hex(data, length).c_str());
-  if ((this->battery_level_sensor_ != nullptr) { // should not be needed
+  if (this->battery_level_sensor_ != nullptr) { // should not be needed
     if (length == BATTERY_STATUS_LENGTH) {
       this->battery_level_sensor_->publish_state(data[0]);
     } else {
@@ -420,7 +420,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
           }
         }
 
-        if (this->battery_level_sensor != nullptr) {
+        if (this->battery_level_sensor_ != nullptr) {
           // read battery
           read_status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->battery_char_handle_, ESP_GATT_AUTH_REQ_NONE);
           if (read_status) {
