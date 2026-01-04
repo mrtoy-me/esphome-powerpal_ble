@@ -69,7 +69,7 @@ void Powerpal::request_subscription_(const char *trigger_reason) {
   if ((this->powerpal_state_ == CONNECTION_PENDING) || (this->powerpal_state_ == AUTHENICATED)) return;
 
   if (this->powerpal_state_ == SUBSCRIPTION_IN_PROGRESS) {
-    ESP_LOGV(TAG, "Subscription already in progress [%s], ignoring: %s", this->parent_->address_str(), trigger_reason);
+    ESP_LOGD(TAG, "Subscription already in progress [%s], ignoring: %s", this->parent_->address_str(), trigger_reason);
     return;
   }
 
@@ -120,7 +120,7 @@ void Powerpal::on_disconnect() {
       ESP_LOGD(TAG, "Reconnect triggered but already connected [%s]", this->parent_->address_str());
       return;
     }
-    ESP_LOGI(TAG, "Attempting BLE reconnect [%s]", this->parent_->address_str());
+    ESP_LOGD(TAG, "Attempting BLE reconnect [%s]", this->parent_->address_str());
     this->powerpal_state_ = CONNECTION_PENDING;
     this->parent_->connect();
   });
@@ -128,7 +128,7 @@ void Powerpal::on_disconnect() {
 }
 
 void Powerpal::parse_battery_(const uint8_t *data, uint16_t length) {
-  ESP_LOGI(TAG, "Battery state: 0x%s", format_hex(data, length).c_str());
+  ESP_LOGD(TAG, "Battery state: 0x%s", format_hex(data, length).c_str());
   if (this->battery_level_sensor_ != nullptr) { // should not be needed
     if (length == BATTERY_STATUS_LENGTH) {
       this->battery_level_sensor_->publish_state(data[0]);
@@ -144,7 +144,7 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     return;
   }
 
-  ESP_LOGD(TAG, "Measurement: 0x%s", format_hex(data, length).c_str());
+  ESP_LOGV(TAG, "Measurement(%i): 0x%s",length, format_hex(data, length).c_str());
 
   time_t unix_time = data[0];
   unix_time += (data[1] << 8);
@@ -237,7 +237,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
-        ESP_LOGD(TAG, "Open Event [%s] ", this->parent_->address_str());
+        ESP_LOGV(TAG, "Open Event [%s] ", this->parent_->address_str());
         this->on_connect();
       } else {
         ESP_LOGW(TAG, "Open failed [%s], error=%d", this->parent_->address_str(), param->open.status);
@@ -253,12 +253,12 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      //ESP_LOGI(TAG, "Search Event: establishing characteristic handles");
+      ESP_LOGV(TAG, "Search Event: establishing characteristic handles");
 
       // Pairing Code Handle
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_PAIRING_CODE_UUID)) {
         this->pairing_code_char_handle_ = ch->handle;
-        ESP_LOGI(TAG, "  Pairing Code handle: 0x%02x", ch->handle);
+        ESP_LOGD(TAG, "  Pairing Code handle: 0x%02x", ch->handle);
       } else {
         ESP_LOGE(TAG, "  Getting Pairing Code handle failed - setting default");
         this->pairing_code_char_handle_ = PAIRING_CODE_DEFAULT_HANDLE;
@@ -267,7 +267,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       // Reading Batch Size Handle
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_READING_BATCH_SIZE_UUID)) {
         this->reading_batch_size_char_handle_ = ch->handle;
-        ESP_LOGI(TAG, "  Reading Batch Size handle: 0x%02x", ch->handle);
+        ESP_LOGD(TAG, "  Reading Batch Size handle: 0x%02x", ch->handle);
       } else {
         ESP_LOGE(TAG, "  Getting Reading Batch Size handle failed - setting default");
         this->reading_batch_size_char_handle_ = READING_BATCH_SIZE_DEFAULT_HANDLE;
@@ -276,7 +276,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       // Measurement Handle
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_MEASUREMENT_UUID)) {
         this->measurement_char_handle_ = ch->handle;
-        ESP_LOGI(TAG, "  Measurement handle: 0x%02x", ch->handle);
+        ESP_LOGD(TAG, "  Measurement handle: 0x%02x", ch->handle);
       } else {
         ESP_LOGE(TAG, "  Getting Measurement handle failed - setting default");
         this->measurement_char_handle_ = MEASUREMENT_CHAR_DEFAULT_HANDLE;
@@ -285,7 +285,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       // UUID Handle
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_UUID_UUID)) {
         this->uuid_char_handle_ = ch->handle;
-        ESP_LOGI(TAG, "  UUID handle: 0x%02x", ch->handle);
+        ESP_LOGD(TAG, "  UUID handle: 0x%02x", ch->handle);
       } else {
         ESP_LOGE(TAG, "  Getting UUID handle failed - setting default");
         this->uuid_char_handle_ = UUID_CHAR_DEFAULT_HANDLE;
@@ -294,7 +294,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       // Serial Number Handle
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_SERIAL_UUID)) {
         this->serial_number_char_handle_ = ch->handle;
-        ESP_LOGI(TAG, "  Serial Number handle: 0x%02x", ch->handle);
+        ESP_LOGD(TAG, "  Serial Number handle: 0x%02x", ch->handle);
        } else {
         ESP_LOGE(TAG, "  Getting Serial Number handle failed - setting to default");
         this->serial_number_char_handle_ = SERIAL_NUMBER_CHAR_DEFAULT_HANDLE;
@@ -311,7 +311,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }
 
     case ESP_GATTC_READ_CHAR_EVT: {
-      //ESP_LOGD(TAG, "Read Event [%s]", this->parent_->address_str());
+      ESP_LOGV(TAG, "Read Event [%s]", this->parent_->address_str());
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Read Event failed at handle %d, error=%d", param->read.handle, param->read.status);
         break;
@@ -319,7 +319,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       // reading batch size
       if (param->read.handle == this->reading_batch_size_char_handle_) {
-        ESP_LOGI(TAG, "Reading Batch Size: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGD(TAG, "Reading Batch Size: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
         if (param->read.value_len != 4) {
           ESP_LOGW(TAG, "Reading Batch Size has incorrect length: %d", param->read.value_len);
           break;
@@ -351,13 +351,13 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       // firmware
       if (param->read.handle == this->firmware_char_handle_) {
-        ESP_LOGI(TAG, "Firmware: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGD(TAG, "Firmware: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
       // led sensitivity
       if (param->read.handle == this->led_sensitivity_char_handle_) {
-        ESP_LOGI(TAG, "Led Sensitivity: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGD(TAG, "Led Sensitivity: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
@@ -365,7 +365,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       if (param->read.handle == this->serial_number_char_handle_) {
         // this->powerpal_device_id_ = format_hex(param->read.value, param->read.value_len);
         // ESP_LOGI(TAG, "Device ID: %s", this->powerpal_device_id_.c_str());
-        ESP_LOGI(TAG, "Device ID: %s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGD(TAG, "Device ID: %s", format_hex(param->read.value, param->read.value_len).c_str());
 
         break;
       }
@@ -374,7 +374,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       if (param->read.handle == this->uuid_char_handle_) {
         // this->powerpal_apikey_ = format_hex(param->read.value, param->read.value_len);
         // ESP_LOGI(TAG, "API Key: %s", this->powerpal_apikey_.c_str());
-        ESP_LOGI(TAG, "API Key: %s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGD(TAG, "API Key: %s", format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
@@ -382,7 +382,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }
 
     case ESP_GATTC_WRITE_CHAR_EVT: {
-      //ESP_LOGD(TAG, "Write Event [%s]", this->parent_->address_str());
+      ESP_LOGV(TAG, "Write Event [%s]", this->parent_->address_str());
 
       if (param->write.handle == this->pairing_code_char_handle_) {
         if (param->write.status != ESP_GATT_OK) {
@@ -471,7 +471,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }  // ESP_GATTC_WRITE_CHAR_EVT
 
     case ESP_GATTC_NOTIFY_EVT: {
-      //ESP_LOGD(TAG, "Notify Event [%s]", this->parent_->address_str());
+      ESP_LOGV(TAG, "Notify Event [%s]", this->parent_->address_str());
 
       // battery
       if (param->notify.handle == this->battery_char_handle_) {
