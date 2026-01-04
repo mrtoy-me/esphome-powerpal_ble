@@ -90,11 +90,11 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(Powerpal),
             cv.Required(CONF_PAIRING_CODE): cv.int_range(min=1, max=999999),
             cv.Required(CONF_PULSES_PER_KWH): cv.int_range(min=1, max=100000),
-            # cv.Optional(CONF_NOTIFICATION_INTERVAL, default=1): cv.int_range(min=1, max=60),
+            cv.Optional(CONF_NOTIFICATION_INTERVAL, default=1): cv.int_range(min=1, max=60),
             # # apikey (optional) # if not configured, will grab from device
             # cv.Optional(CONF_POWERPAL_APIKEY): powerpal_apikey,
             # # if device_id not configured, will grab from device
-            cv.Optional(CONF_POWERPAL_DEVICE_ID): powerpal_deviceid,
+            # cv.Optional(CONF_POWERPAL_DEVICE_ID): powerpal_deviceid,
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
 
             # sensors
