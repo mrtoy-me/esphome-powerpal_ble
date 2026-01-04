@@ -43,8 +43,8 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   void set_pulses_per_kwh(uint16_t pulses_per_kwh) { pulses_per_kwh_ = pulses_per_kwh; }
 
   void set_notification_interval(uint8_t reading_batch_size) { reading_batch_size_[0] = reading_batch_size; }
-  void set_apikey(std::string powerpal_apikey) { powerpal_apikey_ = powerpal_apikey; }
-  void set_device_id(std::string powerpal_device_id) { powerpal_device_id_ = powerpal_device_id; }
+  // void set_apikey(std::string powerpal_apikey) { powerpal_apikey_ = powerpal_apikey; }
+  // void set_device_id(std::string powerpal_device_id) { powerpal_device_id_ = powerpal_device_id; }
 
   void set_battery_level_sensor(sensor::Sensor *battery_level_sensor) { battery_level_sensor_ = battery_level_sensor; }
   void set_daily_energy_sensor(sensor::Sensor *daily_energy_sensor) { daily_energy_sensor_ = daily_energy_sensor; }
@@ -95,8 +95,8 @@ class Powerpal : public esphome::ble_client::BLEClientNode, public Component {
   sensor::Sensor *uptime_sensor_{nullptr};
   sensor::Sensor *watt_hours_sensor_{nullptr};
 
-  std::string powerpal_apikey_;
-  std::string powerpal_device_id_;
+  // std::string powerpal_apikey_;
+  // std::string powerpal_device_id_;
 
   uint8_t pairing_code_[4];
   uint8_t reading_batch_size_[4] = {0x01, 0x00, 0x00, 0x00};

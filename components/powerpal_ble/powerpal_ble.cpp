@@ -363,17 +363,18 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       // serialNumber
       if (param->read.handle == this->serial_number_char_handle_) {
-        this->powerpal_device_id_ = format_hex(param->read.value, param->read.value_len);
-        ESP_LOGI(TAG, "Device ID: %s", this->powerpal_device_id_.c_str());
+        // this->powerpal_device_id_ = format_hex(param->read.value, param->read.value_len);
+        // ESP_LOGI(TAG, "Device ID: %s", this->powerpal_device_id_.c_str());
+        ESP_LOGI(TAG, "Device ID: %s", format_hex(param->read.value, param->read.value_len).c_str());
 
         break;
       }
 
       // uuid
       if (param->read.handle == this->uuid_char_handle_) {
-        this->powerpal_apikey_ = format_hex(param->read.value, param->read.value_len);
-        ESP_LOGI(TAG, "API Key: %s", this->powerpal_apikey_.c_str());
-
+        // this->powerpal_apikey_ = format_hex(param->read.value, param->read.value_len);
+        // ESP_LOGI(TAG, "API Key: %s", this->powerpal_apikey_.c_str());
+        ESP_LOGI(TAG, "API Key: %s", format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
@@ -404,21 +405,21 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
           ESP_LOGW(TAG, "Reading Batch Size - read request failed, error=%d", read_status);
         }
 
-        if (!this->powerpal_apikey_.length()) {
-          // read uuid
-          read_status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->uuid_char_handle_, ESP_GATT_AUTH_REQ_NONE);
-          if (read_status) {
-            ESP_LOGW(TAG, "UUID - read request failed, error=%d", read_status);
-          }
+        // if (!this->powerpal_apikey_.length()) {
+        // read uuid
+        read_status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->uuid_char_handle_, ESP_GATT_AUTH_REQ_NONE);
+        if (read_status) {
+          ESP_LOGW(TAG, "UUID - read request failed, error=%d", read_status);
         }
+        // }
 
-        if (!this->powerpal_device_id_.length()) {
-          // read serial number
-          read_status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->serial_number_char_handle_, ESP_GATT_AUTH_REQ_NONE);
-          if (read_status) {
-            ESP_LOGW(TAG, "Serial Number - read request failed, error=%d", read_status);
-          }
+        // if (!this->powerpal_device_id_.length()) {
+        // read serial number
+        read_status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->serial_number_char_handle_, ESP_GATT_AUTH_REQ_NONE);
+        if (read_status) {
+          ESP_LOGW(TAG, "Serial Number - read request failed, error=%d", read_status);
         }
+        // }
 
         if (this->battery_level_sensor_ != nullptr) {
           // read battery
