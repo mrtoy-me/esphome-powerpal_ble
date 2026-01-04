@@ -143,8 +143,8 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     ESP_LOGW(TAG, "Skip parsing measuerment - packet length too short: %hu", length);
     return;
   }
-
-  ESP_LOGV(TAG, "Measurement(%i): 0x%s",length, format_hex(data, length).c_str());
+  ESP_LOGI(TAG, "New powerpal measurement: length=%i",length);
+  ESP_LOGV(TAG, "Measurement received: 0x%s", format_hex(data, length).c_str());
 
   time_t unix_time = data[0];
   unix_time += (data[1] << 8);
