@@ -69,18 +69,18 @@ void Powerpal::request_subscription_(const char *trigger_reason) {
   if ((this->powerpal_state_ == CONNECTION_PENDING) || (this->powerpal_state_ == AUTHENICATED)) return;
 
   if (this->powerpal_state_ == SUBSCRIPTION_IN_PROGRESS) {
-    ESP_LOGV(TAG, "Subscription already in progress [%s], ignoring '%s'", this->parent_->address_str(), trigger_reason);
+    ESP_LOGV(TAG, "Subscription already in progress [%s], ignoring: %s", this->parent_->address_str(), trigger_reason);
     return;
   }
 
   if (this->powerpal_state_ == ESTABLISH_HANDLES_PENDING) {
-    ESP_LOGD(TAG, "[%s] GATT handles not ready, waiting to subscribe (%s)", this->parent_->address_str(), trigger_reason);
+    ESP_LOGD(TAG, "GATT handles not ready [%s], waiting to subscribe: %s", this->parent_->address_str(), trigger_reason);
     if (!this->establish_handles_retry_scheduled_) {
       this->establish_handles_retry_scheduled_ = true;
       this->set_timeout(500, [this]() {
         // still waiting for handles - nothing changes just fire off another delay before calling request subscription again
         this->establish_handles_retry_scheduled_ = false;
-        this->request_subscription_("Establish Handles - retry");
+        this->request_subscription_("Retry Establish Handles");
       });
     }
     return;
@@ -97,7 +97,7 @@ void Powerpal::request_subscription_(const char *trigger_reason) {
       this->subscription_retry_scheduled_ = true;
       this->set_timeout(2000, [this]() {
         this->subscription_retry_scheduled_ = false;
-        this->request_subscription_("Subscription - retry");
+        this->request_subscription_("Retry Subscription");
       });
     }
     return;
@@ -117,7 +117,7 @@ void Powerpal::on_disconnect() {
   this->set_timeout(10000, [this]() {
     if (this->parent_ == nullptr) return;
     if (this->powerpal_state_ >= ESTABLISH_HANDLES_PENDING) {
-      ESP_LOGD(TAG, "Reconnect fired but already connected [%s]", this->parent_->address_str());
+      ESP_LOGD(TAG, "Reconnect triggered but already connected [%s]", this->parent_->address_str());
       return;
     }
     ESP_LOGI(TAG, "Attempting BLE reconnect [%s]", this->parent_->address_str());
@@ -237,7 +237,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
-        ESP_LOGD(TAG, " Open Event [%s] ", this->parent_->address_str());
+        ESP_LOGD(TAG, "Open Event [%s] ", this->parent_->address_str());
         this->on_connect();
       } else {
         ESP_LOGW(TAG, "Open failed [%s], error=%d", this->parent_->address_str(), param->open.status);
@@ -269,7 +269,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
         this->reading_batch_size_char_handle_ = ch->handle;
         ESP_LOGI(TAG, "  Reading Batch Size handle: 0x%02x", ch->handle);
       } else {
-        ESP_LOGE(TAG, "   Getting Reading Batch Size handle failed - setting default");
+        ESP_LOGE(TAG, "  Getting Reading Batch Size handle failed - setting default");
         this->reading_batch_size_char_handle_ = READING_BATCH_SIZE_DEFAULT_HANDLE;
       }
 
@@ -306,7 +306,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       this->led_sensitivity_char_handle_ = LED_SENSITIVITY_CHAR_DEFAULT_HANDLE;
 
       this->powerpal_state_ = SUBSCRIPTION_PENDING;
-      this->request_subscription_("Subscription pending");
+      this->request_subscription_("Subscription Pending");
       break;
     }
 
@@ -392,7 +392,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
             this->subscription_retry_scheduled_ = true;
             this->set_timeout(2000, [this]() {
               this->subscription_retry_scheduled_ = false;
-              this->request_subscription_("Subscription retry after pairing failed");
+              this->request_subscription_("Retry Subscription after Pairing Failed");
             });
           }
           break;
