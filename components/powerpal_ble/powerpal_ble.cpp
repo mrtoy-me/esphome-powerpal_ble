@@ -253,7 +253,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      ESP_LOGI(TAG, "Search Event: establishing characteristic handles");
+      //ESP_LOGI(TAG, "Search Event: establishing characteristic handles");
 
       // Pairing Code Handle
       if (auto *ch = this->parent_->get_characteristic(POWERPAL_SERVICE_UUID, POWERPAL_CHARACTERISTIC_PAIRING_CODE_UUID)) {
@@ -311,7 +311,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }
 
     case ESP_GATTC_READ_CHAR_EVT: {
-      ESP_LOGD(TAG, "Read Event [%s]", this->parent_->address_str());
+      //ESP_LOGD(TAG, "Read Event [%s]", this->parent_->address_str());
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Read Event failed at handle %d, error=%d", param->read.handle, param->read.status);
         break;
@@ -382,7 +382,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }
 
     case ESP_GATTC_WRITE_CHAR_EVT: {
-      ESP_LOGD(TAG, "Write Event [%s]", this->parent_->address_str());
+      //ESP_LOGD(TAG, "Write Event [%s]", this->parent_->address_str());
 
       if (param->write.handle == this->pairing_code_char_handle_) {
         if (param->write.status != ESP_GATT_OK) {
@@ -471,7 +471,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
     }  // ESP_GATTC_WRITE_CHAR_EVT
 
     case ESP_GATTC_NOTIFY_EVT: {
-      ESP_LOGD(TAG, "Notify Event [%s]", this->parent_->address_str());
+      //ESP_LOGD(TAG, "Notify Event [%s]", this->parent_->address_str());
 
       // battery
       if (param->notify.handle == this->battery_char_handle_) {
