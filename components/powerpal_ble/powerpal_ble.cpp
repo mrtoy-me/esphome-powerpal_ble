@@ -87,7 +87,7 @@ void Powerpal::request_subscription_(const char *trigger_reason) {
   }
 
   // SUBSCRITION_PENDING
-  ESP_LOGI(TAG, "Writing pairing code [%s]: %s", this->parent_->address_str(), trigger_reason);
+  ESP_LOGI(TAG, "Writing Powerpal pairing code: %s", trigger_reason);
   auto status = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
                                          this->pairing_code_char_handle_, sizeof(this->pairing_code_),
                                          this->pairing_code_, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -143,7 +143,10 @@ void Powerpal::parse_measurement_(const uint8_t *data, uint16_t length) {
     ESP_LOGW(TAG, "Skip parsing measuerment - packet length too short: %hu", length);
     return;
   }
-  ESP_LOGI(TAG, "New powerpal measurement: length=%i",length);
+  ESP_LOGI(TAG, "New powerpal measurement with length: %i",length);
+  // #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  //   char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
+  // #endif
   ESP_LOGV(TAG, "Measurement received: 0x%s", format_hex(data, length).c_str());
 
   time_t unix_time = data[0];
@@ -351,13 +354,13 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 
       // firmware
       if (param->read.handle == this->firmware_char_handle_) {
-        ESP_LOGV(TAG, "Firmware: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGI(TAG, "Firmware: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
       // led sensitivity
       if (param->read.handle == this->led_sensitivity_char_handle_) {
-        ESP_LOGV(TAG, "Led Sensitivity: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGI(TAG, "Led Sensitivity: 0x%s", format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
@@ -365,7 +368,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       if (param->read.handle == this->serial_number_char_handle_) {
         // this->powerpal_device_id_ = format_hex(param->read.value, param->read.value_len);
         // ESP_LOGI(TAG, "Device ID: %s", this->powerpal_device_id_.c_str());
-        ESP_LOGV(TAG, "Device ID: %s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGI(TAG, "Device ID: %s", format_hex(param->read.value, param->read.value_len).c_str());
 
         break;
       }
@@ -374,7 +377,7 @@ void Powerpal::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
       if (param->read.handle == this->uuid_char_handle_) {
         // this->powerpal_apikey_ = format_hex(param->read.value, param->read.value_len);
         // ESP_LOGI(TAG, "API Key: %s", this->powerpal_apikey_.c_str());
-        ESP_LOGV(TAG, "API Key: %s", format_hex(param->read.value, param->read.value_len).c_str());
+        ESP_LOGI(TAG, "API Key: %s", format_hex(param->read.value, param->read.value_len).c_str());
         break;
       }
 
